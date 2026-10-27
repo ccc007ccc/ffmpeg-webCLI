@@ -41,9 +41,25 @@ The paper defines the four properties (fidelity, progressive disclosure, offline
 
 ✓ **Advanced Features** : Raw ffmpeg command access, subtitle embedding, concatenation, picture-in-picture, audio mixing
 
+✓ **Animated Text Watermarks** : Choose a moving patrol, horizontal/vertical loop, or fixed position; adjust text, font, size, color, opacity, margins, timing, background, shadow, and outline
+
+✓ **Localized, Responsive UI** : Automatically follows the browser language and system theme, with manual Chinese/English and light/dark overrides
+
 ✓ **Fast & Responsive** : Uses Web Workers for background processing
 
 ✓ **Privacy First** : Zero data collection; works with your files locally
+
+## GitHub Pages
+
+The app is a static site in `docs/`; it does not need the Node server or a build step. In the repository's **Settings → Pages**, select **Deploy from a branch**, then choose `main` and `/docs`. GitHub Pages supports publishing a branch's `/docs` folder directly, and `docs/index.html` is already at that folder's root.
+
+The checked-in `docs/CNAME` keeps the `ffmpeg.webcli.app` custom domain. Keep it if that domain is configured in the repository's Pages settings and its DNS points to GitHub Pages. The app's asset and offline-cache paths are relative to the deployment directory, so the repository URL under `username.github.io` also works if the custom domain is removed.
+
+FFmpeg and supporting libraries load from CDNs on first use; after they are cached, the service worker provides offline support. Video files are processed locally in the browser.
+
+## Text Watermark
+
+The watermark operation includes moving patrol, horizontal and vertical loop, and fixed-position motion modes, plus ready-made patrol, corner, centered, and label presets. Controls include watermark text, font size, color, opacity, edge margin, movement time, static X/Y position, background, shadow, and outline. Select a TTF or OTF font file; for Chinese text, use a font that contains Chinese glyphs. The font and video stay in the browser and are removed from the FFmpeg virtual filesystem after processing.
 
 ---
 

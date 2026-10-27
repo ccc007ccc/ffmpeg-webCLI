@@ -8,18 +8,24 @@
  * - CDN resources caching (ffmpeg library, utilities, icons)
  */
 
-const CACHE_NAME = 'ffmpeg-editor-v5';
-const RUNTIME_CACHE = 'ffmpeg-editor-runtime-v5';
-const CDN_CACHE = 'ffmpeg-editor-cdn-v5';
+const CACHE_NAME = 'ffmpeg-editor-v6';
+const RUNTIME_CACHE = 'ffmpeg-editor-runtime-v6';
+const CDN_CACHE = 'ffmpeg-editor-cdn-v6';
+// Resolve files from this deployment directory so both custom domains and
+// GitHub Pages project URLs such as /owner/repository/ work correctly.
+const APP_BASE_URL = new URL('./', self.location.href);
 
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/worker.js',
-  '/handoff.js',
-  '/coi-serviceworker.js',
-  '/manifest.json',
-];
+  'index.html',
+  'app-base.css',
+  'app.css',
+  'app-shell.js',
+  'app.js',
+  'worker.js',
+  'handoff.js',
+  'coi-serviceworker.js',
+  'manifest.json',
+].map((path) => new URL(path, APP_BASE_URL).href);
 
 const CDN_RESOURCES = [
   // FFmpeg library - core modules
@@ -147,7 +153,7 @@ self.addEventListener('fetch', (event) => {
               
               // Return offline page for navigation requests
               if (request.destination === 'document') {
-                return caches.match('/index.html');
+                return caches.match(new URL('index.html', APP_BASE_URL).href);
               }
               
               return new Response('Offline - resource not available', {
