@@ -167,14 +167,29 @@ textarea { resize: vertical; }
 .op-search input { padding-left: 36px; }
 .operations-toolbar select { min-width: 0; }
 
+@font-face {
+  font-family: "Watermark Noto Sans SC";
+  src: url("./fonts/noto-sans-sc.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Watermark Noto Serif SC";
+  src: url("./fonts/noto-serif-sc.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 .watermark-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(210px, .8fr); gap: 16px; align-items: start; }
 .watermark-controls { min-width: 0; }
 .watermark-controls .form-group { min-width: 0; }
 .watermark-controls .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
 .watermark-controls > .form-row:first-child { grid-template-columns: minmax(0, .85fr) minmax(0, 1.4fr) minmax(0, 1fr); }
 .watermark-controls input[type="range"] { display: block; }
-.watermark-font-picker { display: flex; align-items: center; gap: 8px; min-height: 42px; min-width: 0; }
-.watermark-font-picker span { overflow: hidden; color: var(--muted); font-size: .73rem; text-overflow: ellipsis; white-space: nowrap; }
+.watermark-font-picker { display: flex; align-items: center; gap: 8px; min-height: 24px; min-width: 0; margin-top: 5px; }
+.watermark-font-picker span { overflow: hidden; color: var(--muted); font-size: .73rem; line-height: 1.4; text-overflow: ellipsis; }
 #watermarkFontInput { display: none; }
 .watermark-advanced { margin-top: 6px; padding: 10px 12px 2px; border: 1px solid var(--border); border-radius: 10px; }
 .watermark-advanced summary { padding-bottom: 9px; color: var(--text); cursor: pointer; font-size: .82rem; font-weight: 650; }
@@ -182,6 +197,8 @@ textarea { resize: vertical; }
 .watermark-preview {
   position: relative;
   width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -195,33 +212,23 @@ textarea { resize: vertical; }
 #watermarkPreviewText {
   position: absolute;
   z-index: 1;
-  left: var(--preview-x, 8%);
-  top: var(--preview-y, 8%);
-  max-width: 82%;
-  padding: 2px 4px;
-  overflow: hidden;
+  left: 0;
+  top: 0;
+  width: max-content;
+  max-width: none;
+  padding: var(--watermark-box-padding, 0px);
+  overflow: visible;
   color: var(--watermark-color, #fff);
   background: rgb(0 0 0 / var(--watermark-bg, 0%));
   border-radius: 4px;
   font-size: var(--watermark-size, 15px);
   font-weight: 700;
-  line-height: 1.2;
-  text-shadow: 0 2px 4px rgb(0 0 0 / var(--watermark-shadow, 35%));
-  -webkit-text-stroke: var(--watermark-outline, 0px) #000;
+  line-height: 1.05;
+  text-shadow: var(--watermark-shadow-offset, 2px) var(--watermark-shadow-offset, 2px) var(--watermark-shadow-blur, 0px) var(--watermark-shadow-color, rgb(0 0 0 / 35%));
+  -webkit-text-stroke: var(--watermark-outline, 0px) var(--watermark-outline-color, #000);
+  font-family: var(--watermark-font-family, system-ui, sans-serif);
   white-space: nowrap;
-  animation: watermark-patrol var(--watermark-duration, 16s) linear infinite;
 }
-.watermark-preview[data-motion="horizontal"] #watermarkPreviewText { animation-name: watermark-horizontal; }
-.watermark-preview[data-motion="vertical"] #watermarkPreviewText { animation-name: watermark-vertical; }
-.watermark-preview[data-motion="static"] #watermarkPreviewText { animation: none; }
-@keyframes watermark-patrol {
-  0%, 100% { left: 7%; top: 8%; }
-  25% { left: 78%; top: 74%; }
-  50% { left: 78%; top: 8%; }
-  75% { left: 7%; top: 74%; }
-}
-@keyframes watermark-horizontal { 0%, 100% { left: 7%; } 50% { left: 78%; } }
-@keyframes watermark-vertical { 0%, 100% { top: 8%; } 50% { top: 74%; } }
 .watermark-command-card { display: grid; gap: 5px; margin-top: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
 .watermark-command-card > span { color: var(--muted); font-size: .72rem; font-weight: 650; }
 .watermark-command-card code { display: block; max-height: 100px; overflow: auto; color: #7dd3fc; font: .72rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }

@@ -17,8 +17,15 @@ const ffmpeg = new FFmpeg();
 let inputFile = null;
 let inputExt  = '';
 let watermarkFontFile = null;
+let selectedWatermarkFontPreset = 'noto-sans-sc';
+let watermarkCustomFontFace = null;
+let watermarkCustomFontURL = null;
+let watermarkPreviewAnimationId = 0;
+let watermarkPreviewStartedAt = 0;
+let watermarkPreviewLayout = null;
 const WATERMARK_TEXT_FILE = 'watermark-text.txt';
 const WATERMARK_FONT_FILE = 'watermark-font.ttf';
+const FFMPEG_CDN_CACHE = 'ffmpeg-editor-cdn-v6';
 let currentObjectURL = null;  // object URL backing the input <video> preview
 let vidDur    = 0;
 let currentOp    = 'convert';
@@ -366,12 +373,32 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ── Load ffmpeg ───────────────────────────────────────
+async function ffmpegCoreFilesCached(coreURL, wasmURL) {
+  if (!('caches' in window)) return false;
+  try {
+    const cache = await caches.open(FFMPEG_CDN_CACHE);
+    const [core, wasm] = await Promise.all([cache.match(coreURL), cache.match(wasmURL)]);
+    return Boolean(core && wasm);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function updateFFmpegCacheHint() {
+  const esmBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
+  const coreURL = `${esmBase}/ffmpeg-core.js`;
+  const wasmURL = `${esmBase}/ffmpeg-core.wasm`;
+  if (isLoaded() || !(await ffmpegCoreFilesCached(coreURL, wasmURL))) return;
+  document.getElementById('statusText').textContent = 'FFmpeg is not running; cached files are reused when available';
+  document.getElementById('loadBtn').innerHTML = '<i class="fas fa-play"></i> Start cached FFmpeg';
+}
+
 async function loadFFmpeg() {
   const btn  = document.getElementById('loadBtn');
   const dot  = document.getElementById('statusDot');
   const txt  = document.getElementById('statusText');
   dot.className = 'dot loading';
-  txt.textContent = 'Downloading ffmpeg-core (~31 MB)…';
+  txt.textContent = 'Preparing ffmpeg…';
   btn.disabled = true;
 
   ffmpeg.on('log', ({ message }) => addLog(message));
@@ -387,6 +414,14 @@ async function loadFFmpeg() {
   // so import() returns an empty namespace and module.default is undefined.
   const coreBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
   try {
+    const coreURL = `${coreBase}/ffmpeg-core.js`;
+    const wasmURL = `${coreBase}/ffmpeg-core.wasm`;
+    const cached = await ffmpegCoreFilesCached(coreURL, wasmURL);
+    txt.textContent = cached ? 'Initializing ffmpeg from browser cache…' : 'Downloading ffmpeg-core (~31 MB)…';
+    btn.innerHTML = cached
+      ? '<i class="fas fa-spinner fa-spin"></i> Starting cached FFmpeg…'
+      : '<i class="fas fa-spinner fa-spin"></i> Downloading FFmpeg…';
+
     // docs/worker.js is a same-origin proxy that imports the CDN worker module.
     // Browsers block cross-origin type:module workers even with CORS headers, and
     // blob URL workers cause ERR_REQUEST_RANGE_NOT_SATISFIABLE on internal fetches.
@@ -400,21 +435,21 @@ async function loadFFmpeg() {
     // The ESM ffmpeg-core.js has internal relative imports; when loaded from a
     // blob URL those imports have no base to resolve against → memory errors.
     // Passing the CDN URL directly lets import() resolve them from the CDN base.
-    const coreURL = `${coreBase}/ffmpeg-core.js`;
     addLog('Using direct CDN URL for ffmpeg-core.js.', 'ok');
 
     // wasmURL: direct CDN URL. jsDelivr serves .wasm with Content-Type:
     // application/wasm + CORS headers, so WebAssembly.instantiateStreaming
     // works without a blob wrapper. Blob URLs don't support Range requests
     // (needed internally by the streaming compiler → ERR_REQUEST_RANGE_NOT_SATISFIABLE).
-    const wasmURL = `${coreBase}/ffmpeg-core.wasm`;
     addLog('Using direct CDN URL for ffmpeg-core.wasm.', 'ok');
 
-    txt.textContent = 'Initialising ffmpeg (downloading WASM ~31 MB)…';
+    if (!cached) txt.textContent = 'Initialising ffmpeg (downloading WASM ~31 MB)…';
     await ffmpeg.load({ classWorkerURL, coreURL, wasmURL });
 
     dot.className = 'dot loaded';
-    txt.textContent = 'ffmpeg loaded and ready';
+    txt.textContent = (await ffmpegCoreFilesCached(coreURL, wasmURL))
+      ? 'FFmpeg ready (core files cached for next time)'
+      : 'ffmpeg loaded and ready';
     btn.innerHTML = '<i class="fas fa-check"></i> Loaded';
     btn.className = 'btn btn-success ml-auto';
     btn.disabled = true;
@@ -425,6 +460,8 @@ async function loadFFmpeg() {
     const msg = (err instanceof Error ? err.message : String(err)) || 'unknown error';
     dot.className = 'dot';
     txt.textContent = 'Load failed: ' + msg;
+    btn.className = 'btn btn-primary ml-auto';
+    btn.innerHTML = '<i class="fas fa-download"></i> Load FFmpeg (cached after first load)';
     btn.disabled = false;
     addLog('Load error: ' + msg, 'err');
   }
@@ -476,6 +513,7 @@ async function handleFile(file) {
     document.getElementById('thumbTime').value = (vidDur / 2).toFixed(1);
     updateSizeEstimate();
     updateRawPreview();
+    if (currentOp === 'watermark') updateWatermarkPreview();
     // A hash command was preloaded before this file arrived — run it now (unless run:false).
     if (pendingHashCommand && pendingHashCommand.run !== false) {
       runHashCommand(pendingHashCommand);
@@ -718,10 +756,10 @@ function updateTrim() {
 }
 
 const WATERMARK_PRESETS = {
-  patrol: { motion: 'bounce', size: 36, opacity: 60, color: '#ffffff', margin: 20, cycle: 4, x: 50, y: 50, background: 0, shadow: 35, outline: 0 },
-  corner: { motion: 'static', size: 30, opacity: 65, color: '#ffffff', margin: 24, cycle: 4, x: 90, y: 88, background: 0, shadow: 55, outline: 0 },
-  center: { motion: 'static', size: 48, opacity: 55, color: '#ffffff', margin: 20, cycle: 4, x: 50, y: 50, background: 0, shadow: 25, outline: 0 },
-  label: { motion: 'static', size: 34, opacity: 100, color: '#ffffff', margin: 24, cycle: 4, x: 90, y: 88, background: 48, shadow: 30, outline: 0 },
+  patrol: { motion: 'bounce', size: 36, opacity: 60, color: '#ffffff', margin: 20, cycle: 4, x: 50, y: 50, background: 0, shadow: 35, shadowColor: '#000000', outline: 0, outlineColor: '#000000' },
+  corner: { motion: 'static', size: 30, opacity: 65, color: '#ffffff', margin: 24, cycle: 4, x: 90, y: 88, background: 0, shadow: 55, shadowColor: '#000000', outline: 0, outlineColor: '#000000' },
+  center: { motion: 'static', size: 48, opacity: 55, color: '#ffffff', margin: 20, cycle: 4, x: 50, y: 50, background: 0, shadow: 25, shadowColor: '#000000', outline: 0, outlineColor: '#000000' },
+  label: { motion: 'static', size: 34, opacity: 100, color: '#ffffff', margin: 24, cycle: 4, x: 90, y: 88, background: 48, shadow: 30, shadowColor: '#000000', outline: 0, outlineColor: '#000000' },
 };
 
 function applyWatermarkPreset(name) {
@@ -730,17 +768,72 @@ function applyWatermarkPreset(name) {
     watermarkMotion: preset.motion, watermarkFontSize: preset.size, watermarkOpacity: preset.opacity,
     watermarkColor: preset.color, watermarkMargin: preset.margin, watermarkCycle: preset.cycle,
     watermarkX: preset.x, watermarkY: preset.y, watermarkBgOpacity: preset.background,
-    watermarkShadow: preset.shadow, watermarkOutline: preset.outline,
+    watermarkShadow: preset.shadow, watermarkShadowColor: preset.shadowColor,
+    watermarkOutline: preset.outline, watermarkOutlineColor: preset.outlineColor,
   };
   for (const [id, value] of Object.entries(values)) document.getElementById(id).value = value;
   updateWatermarkPreview();
 }
 
+function releaseCustomWatermarkFont() {
+  if (watermarkCustomFontFace) {
+    document.fonts.delete(watermarkCustomFontFace);
+    watermarkCustomFontFace = null;
+  }
+  if (watermarkCustomFontURL) {
+    URL.revokeObjectURL(watermarkCustomFontURL);
+    watermarkCustomFontURL = null;
+  }
+}
+
+function updateWatermarkFontName() {
+  const name = document.getElementById('watermarkFontName');
+  if (selectedWatermarkFontPreset === 'custom') {
+    name.textContent = watermarkFontFile ? watermarkFontFile.name : 'Choose a custom TTF / OTF font file.';
+  } else if (selectedWatermarkFontPreset === 'noto-serif-sc') {
+    name.textContent = 'Noto Serif SC · SIL OFL 1.1';
+  } else {
+    name.textContent = 'Noto Sans SC · SIL OFL 1.1';
+  }
+}
+
+function onWatermarkFontPresetChange(preset) {
+  const selector = document.getElementById('watermarkFontPreset');
+  if (preset === 'custom' && !watermarkFontFile) {
+    selector.value = selectedWatermarkFontPreset;
+    document.getElementById('watermarkFontInput').click();
+    return;
+  }
+
+  selectedWatermarkFontPreset = preset;
+  if (preset !== 'custom') {
+    watermarkFontFile = null;
+    document.getElementById('watermarkFontInput').value = '';
+    releaseCustomWatermarkFont();
+  }
+  updateWatermarkFontName();
+  updateWatermarkPreview();
+}
+
 function onWatermarkFontChange(input) {
   watermarkFontFile = input.files && input.files[0] ? input.files[0] : null;
-  document.getElementById('watermarkFontName').textContent = watermarkFontFile
-    ? watermarkFontFile.name
-    : 'Choose a font with Chinese glyphs';
+  if (!watermarkFontFile) return;
+  selectedWatermarkFontPreset = 'custom';
+  document.getElementById('watermarkFontPreset').value = 'custom';
+  releaseCustomWatermarkFont();
+  const selectedFile = watermarkFontFile;
+  watermarkCustomFontURL = URL.createObjectURL(selectedFile);
+  const face = new FontFace('Watermark Custom Font', `url("${watermarkCustomFontURL}")`);
+  watermarkCustomFontFace = face;
+  face.load().then((loadedFace) => {
+    if (watermarkFontFile !== selectedFile) return;
+    document.fonts.add(loadedFace);
+    updateWatermarkPreview();
+  }).catch(() => {
+    // FFmpeg will report an actionable error if the selected font file is invalid.
+  });
+  updateWatermarkFontName();
+  updateWatermarkPreview();
 }
 
 function watermarkFilterOptions() {
@@ -755,25 +848,32 @@ function watermarkFilterOptions() {
   const background = Math.max(0, Math.min(90, parseInt(read('watermarkBgOpacity'), 10) || 0)) / 100;
   const shadow = Math.max(0, Math.min(100, parseInt(read('watermarkShadow'), 10) || 0)) / 100;
   const outline = Math.max(0, Math.min(8, parseInt(read('watermarkOutline'), 10) || 0));
-  const color = read('watermarkColor').replace('#', '').toUpperCase();
-  const clampX = expression => `max(0,min(w-text_w,${expression}))`;
-  const clampY = expression => `max(0,min(h-text_h,${expression}))`;
+  const toHex = value => /^#[0-9a-f]{6}$/i.test(value) ? value.slice(1).toUpperCase() : '000000';
+  const color = toHex(read('watermarkColor'));
+  const shadowColor = toHex(read('watermarkShadowColor'));
+  const outlineColor = toHex(read('watermarkOutlineColor'));
+  const boxPadding = background > 0 ? 8 : 0;
+  const safeMargin = margin + boxPadding + outline + 2;
+  const safeX = `min(${safeMargin}\\,max(0\\,(w-text_w)/2))`;
+  const safeY = `min(${safeMargin}\\,max(0\\,(h-text_h)/2))`;
+  const travelX = `max(0\\,w-text_w-2*${safeX})`;
+  const travelY = `max(0\\,h-text_h-2*${safeY})`;
   const progress = `mod(t\\,${cycle})/${cycle}`;
   const segment = `mod(floor(t/${cycle})\\,4)`;
-  let x = `max(0\\,min(w-text_w\\,(w-text_w)*${xPct}/100))`;
-  let y = `max(0\\,min(h-text_h\\,(h-text_h)*${yPct}/100))`;
+  let x = `${safeX}+${travelX}*${xPct}/100`;
+  let y = `${safeY}+${travelY}*${yPct}/100`;
 
   if (motion === 'bounce') {
-    x = `if(eq(${segment}\\,0)\\,${clampX(`${margin}+(w-text_w-2*${margin})*${progress}`)}\\,if(eq(${segment}\\,1)\\,${clampX(`w-text_w-${margin}`)}\\,if(eq(${segment}\\,2)\\,${clampX(`w-text_w-${margin}-(w-text_w-2*${margin})*${progress}`)}\\,${clampX(`${margin}`)})))`;
-    y = `if(eq(mod(floor(t/${cycle})\\,2)\\,0)\\,${clampY(`${margin}+(h-text_h-2*${margin})*${progress}`)}\\,${clampY(`h-text_h-${margin}-(h-text_h-2*${margin})*${progress}`)})`;
+    x = `if(eq(${segment}\\,0)\\,${safeX}+${travelX}*${progress}\\,if(eq(${segment}\\,1)\\,${safeX}+${travelX}\\,if(eq(${segment}\\,2)\\,${safeX}+${travelX}-${travelX}*${progress}\\,${safeX})))`;
+    y = `if(eq(mod(floor(t/${cycle})\\,2)\\,0)\\,${safeY}+${travelY}*${progress}\\,${safeY}+${travelY}-${travelY}*${progress})`;
   } else if (motion === 'horizontal') {
     const travel = `if(lt(mod(t\\,${2 * cycle})\\,${cycle})\\,mod(t\\,${2 * cycle})/${cycle}\\,2-mod(t\\,${2 * cycle})/${cycle})`;
-    x = clampX(`${margin}+(w-text_w-2*${margin})*${travel}`);
-    y = clampY(`${margin}`);
+    x = `${safeX}+${travelX}*${travel}`;
+    y = safeY;
   } else if (motion === 'vertical') {
     const travel = `if(lt(mod(t\\,${2 * cycle})\\,${cycle})\\,mod(t\\,${2 * cycle})/${cycle}\\,2-mod(t\\,${2 * cycle})/${cycle})`;
-    x = clampX(`${margin}`);
-    y = clampY(`${margin}+(h-text_h-2*${margin})*${travel}`);
+    x = safeX;
+    y = `${safeY}+${travelY}*${travel}`;
   }
 
   const options = [
@@ -782,15 +882,71 @@ function watermarkFilterOptions() {
     'expansion=none',
     `fontsize=${size}`,
     `fontcolor=0x${color}@${opacity.toFixed(2)}`,
+    'fix_bounds=1',
     `x='${x}'`,
     `y='${y}'`,
-    `shadowcolor=black@${shadow.toFixed(2)}`,
+    `shadowcolor=0x${shadowColor}@${shadow.toFixed(2)}`,
     'shadowx=2', 'shadowy=2',
   ];
-  if (outline > 0) options.push(`borderw=${outline}`, 'bordercolor=black@0.85');
+  if (outline > 0) options.push(`borderw=${outline}`, `bordercolor=0x${outlineColor}@0.85`);
   if (background > 0) options.push('box=1', `boxcolor=black@${background.toFixed(2)}`, 'boxborderw=8');
 
-  return { filter: `drawtext=${options.join(':')}`, motion, size, opacity, background, shadow, outline, cycle, xPct, yPct, color };
+  return { filter: `drawtext=${options.join(':')}`, motion, size, opacity, background, shadow, outline, cycle, xPct, yPct, margin, boxPadding, color, shadowColor, outlineColor };
+}
+
+function watermarkPreviewRGB(hex, alpha = 1) {
+  const normalized = hex.replace('#', '');
+  const channels = [0, 2, 4].map(offset => parseInt(normalized.slice(offset, offset + 2), 16));
+  return `rgba(${channels.join(', ')}, ${alpha})`;
+}
+
+function watermarkPreviewPosition(state, elapsed) {
+  const layout = watermarkPreviewLayout;
+  if (!layout) return { x: 0, y: 0, paddingX: 0, paddingY: 0 };
+  const { frameWidth, frameHeight, textWidth, textHeight, scaleX, scaleY } = layout;
+  const safety = state.boxPadding + state.outline + 2;
+  const marginX = Math.min((state.margin + safety) * scaleX, Math.max(0, (frameWidth - textWidth) / 2));
+  const marginY = Math.min((state.margin + safety) * scaleY, Math.max(0, (frameHeight - textHeight) / 2));
+  const travelX = Math.max(0, frameWidth - textWidth - 2 * marginX);
+  const travelY = Math.max(0, frameHeight - textHeight - 2 * marginY);
+  const cycle = state.cycle;
+  const progress = ((elapsed % cycle) + cycle) % cycle / cycle;
+  const segment = Math.floor(elapsed / cycle) % 4;
+  const loopProgress = ((elapsed % (2 * cycle)) + 2 * cycle) % (2 * cycle) / cycle;
+  const triangle = loopProgress <= 1 ? loopProgress : 2 - loopProgress;
+  let x = marginX + travelX * state.xPct / 100;
+  let y = marginY + travelY * state.yPct / 100;
+
+  if (state.motion === 'bounce') {
+    x = segment === 0 ? marginX + travelX * progress
+      : segment === 1 ? marginX + travelX
+        : segment === 2 ? marginX + travelX * (1 - progress) : marginX;
+    y = segment % 2 === 0 ? marginY + travelY * progress : marginY + travelY * (1 - progress);
+  } else if (state.motion === 'horizontal') {
+    x = marginX + travelX * triangle;
+    y = marginY;
+  } else if (state.motion === 'vertical') {
+    x = marginX;
+    y = marginY + travelY * triangle;
+  }
+
+  return { x, y, paddingX: state.boxPadding * scaleX, paddingY: state.boxPadding * scaleY };
+}
+
+function renderWatermarkPreviewFrame(timestamp) {
+  watermarkPreviewAnimationId = 0;
+  const preview = document.getElementById('watermarkPreview');
+  if (!preview || !preview.clientWidth || !watermarkPreviewLayout) return;
+  const state = watermarkPreviewLayout.state;
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const elapsed = reduceMotion ? 0 : Math.max(0, (timestamp - watermarkPreviewStartedAt) / 1000);
+  const position = watermarkPreviewPosition(state, elapsed);
+  const previewText = document.getElementById('watermarkPreviewText');
+  previewText.style.left = `${position.x - position.paddingX}px`;
+  previewText.style.top = `${position.y - position.paddingY}px`;
+  if (!reduceMotion && state.motion !== 'static') {
+    watermarkPreviewAnimationId = requestAnimationFrame(renderWatermarkPreviewFrame);
+  }
 }
 
 function updateWatermarkPreview(event) {
@@ -802,16 +958,60 @@ function updateWatermarkPreview(event) {
   const state = watermarkFilterOptions();
   const text = document.getElementById('watermarkText').value || '@你的ID';
   const previewText = document.getElementById('watermarkPreviewText');
+  const video = document.getElementById('inputVideo');
+  const videoWidth = video.videoWidth || 1920;
+  const videoHeight = video.videoHeight || 1080;
+  const ratio = videoWidth / videoHeight;
+  const shellWidth = preview.parentElement.clientWidth || 640;
+  const maxHeight = window.matchMedia('(max-width: 680px)').matches ? 240 : 320;
+  const frameWidth = Math.min(shellWidth, maxHeight * ratio);
+  const frameHeight = frameWidth / ratio;
+  preview.style.width = `${frameWidth}px`;
+  preview.style.height = `${frameHeight}px`;
+  preview.style.aspectRatio = `${videoWidth} / ${videoHeight}`;
   previewText.textContent = text;
   preview.dataset.motion = state.motion;
-  preview.style.setProperty('--watermark-duration', `${state.cycle * 4}s`);
-  preview.style.setProperty('--watermark-size', `${Math.max(12, Math.min(28, state.size / 2))}px`);
-  preview.style.setProperty('--watermark-color', `#${state.color}`);
+
+  const contentWidth = preview.clientWidth || frameWidth;
+  const contentHeight = preview.clientHeight || frameHeight;
+  const scaleX = contentWidth / videoWidth;
+  const scaleY = contentHeight / videoHeight;
+  const fontSize = state.size * scaleY;
+  const boxPaddingX = state.boxPadding * scaleX;
+  const boxPaddingY = state.boxPadding * scaleY;
+  previewText.style.fontSize = `${fontSize}px`;
+  previewText.style.padding = `${boxPaddingY}px ${boxPaddingX}px`;
+  previewText.style.fontWeight = selectedWatermarkFontPreset === 'custom' ? '400' : '700';
+  preview.style.setProperty('--watermark-size', `${fontSize}px`);
+  preview.style.setProperty('--watermark-color', watermarkPreviewRGB(state.color, state.opacity));
   preview.style.setProperty('--watermark-bg', `${state.background * 100}%`);
-  preview.style.setProperty('--watermark-shadow', `${state.shadow * 100}%`);
-  preview.style.setProperty('--watermark-outline', `${Math.min(2, state.outline / 2)}px`);
-  preview.style.setProperty('--preview-x', `${Math.min(82, Math.max(4, state.xPct * .82))}%`);
-  preview.style.setProperty('--preview-y', `${Math.min(78, Math.max(4, state.yPct * .78))}%`);
+  preview.style.setProperty('--watermark-shadow-color', watermarkPreviewRGB(state.shadowColor, state.shadow));
+  preview.style.setProperty('--watermark-shadow-offset', `${2 * scaleX}px`);
+  preview.style.setProperty('--watermark-shadow-blur', '0px');
+  preview.style.setProperty('--watermark-outline', `${state.outline * scaleX}px`);
+  preview.style.setProperty('--watermark-outline-color', `#${state.outlineColor}`);
+  const fontFamily = selectedWatermarkFontPreset === 'noto-serif-sc'
+    ? '"Watermark Noto Serif SC", serif'
+    : selectedWatermarkFontPreset === 'custom' && watermarkCustomFontFace?.status === 'loaded'
+      ? '"Watermark Custom Font", system-ui, sans-serif'
+      : selectedWatermarkFontPreset === 'noto-sans-sc'
+        ? '"Watermark Noto Sans SC", sans-serif'
+        : 'system-ui, sans-serif';
+  preview.style.setProperty('--watermark-font-family', fontFamily);
+  updateWatermarkFontName();
+
+  const textRect = previewText.getBoundingClientRect();
+  const textWidth = Math.max(0, textRect.width - 2 * boxPaddingX);
+  const textHeight = Math.max(0, textRect.height - 2 * boxPaddingY);
+  watermarkPreviewLayout = { state, frameWidth: contentWidth, frameHeight: contentHeight, textWidth, textHeight, scaleX, scaleY };
+  if (watermarkPreviewAnimationId) cancelAnimationFrame(watermarkPreviewAnimationId);
+  watermarkPreviewStartedAt = performance.now();
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (state.motion !== 'static' && !reduceMotion) {
+    watermarkPreviewAnimationId = requestAnimationFrame(renderWatermarkPreviewFrame);
+  } else {
+    renderWatermarkPreviewFrame(watermarkPreviewStartedAt);
+  }
 
   for (const [id, value] of Object.entries({
     watermarkFontSizeVal: state.size,
@@ -829,12 +1029,22 @@ function updateWatermarkPreview(event) {
   document.getElementById('watermarkCommand').textContent = state.filter;
 }
 
+window.addEventListener('resize', () => {
+  if (currentOp === 'watermark') updateWatermarkPreview();
+});
+document.fonts.addEventListener('loadingdone', () => {
+  if (currentOp === 'watermark') updateWatermarkPreview();
+});
+
 async function writeWatermarkAssets() {
   const text = document.getElementById('watermarkText').value;
   if (!text.trim()) throw new Error('Enter the watermark text first.');
-  if (!watermarkFontFile) throw new Error('Choose a TTF or OTF font file first. Chinese text needs a font that includes Chinese glyphs.');
+  if (selectedWatermarkFontPreset === 'custom' && !watermarkFontFile) throw new Error('Choose a custom font file or select a built-in font.');
   await ffmpeg.writeFile(WATERMARK_TEXT_FILE, new TextEncoder().encode(text));
-  await ffmpeg.writeFile(WATERMARK_FONT_FILE, await fetchFile(watermarkFontFile));
+  const fontURL = selectedWatermarkFontPreset === 'noto-serif-sc'
+    ? new URL('./fonts/noto-serif-sc.ttf', import.meta.url).href
+    : new URL('./fonts/noto-sans-sc.ttf', import.meta.url).href;
+  await ffmpeg.writeFile(WATERMARK_FONT_FILE, await fetchFile(watermarkFontFile || fontURL));
 }
 
 async function removeWatermarkAssets() {
@@ -3641,6 +3851,7 @@ if ('serviceWorker' in navigator) {
         scope: './',
         updateViaCache: 'none',
       });
+      updateFFmpegCacheHint();
 
       // Check for updates periodically
       setInterval(async () => {
@@ -4603,7 +4814,7 @@ window.__handoffFiles = async () => (await ffmpeg.listDir('/')).filter((n) => !n
 Object.assign(window, {
   loadFFmpeg, handleFile, handleFileInput, clearInput, setOp,
   updateTrim, processVideo, runProcess, runBatch, download, clearLog, updateSizeEstimate, updateRawPreview,
-  updateWatermarkPreview, applyWatermarkPreset, onWatermarkFontChange,
+  updateWatermarkPreview, applyWatermarkPreset, onWatermarkFontPresetChange, onWatermarkFontChange,
   resetCropSelection,
   onRawInput2Change, onSubtitleFileChange,
   onOverlayFileChange, onMixAudioFileChange, onConcatFileChange,

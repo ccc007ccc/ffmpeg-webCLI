@@ -113,8 +113,9 @@ self.addEventListener('fetch', (event) => {
   // Handle local app resources (network-first, fallback to cache)
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
+      (async () => {
+        try {
+          const response = await fetch(request);
           // Only cache successful responses
           if (response && response.status === 200) {
             const cache = request.url.includes('.js') || 
@@ -122,47 +123,41 @@ self.addEventListener('fetch', (event) => {
                          request.url.includes('.html')
               ? RUNTIME_CACHE
               : CACHE_NAME;
-            
-            const responseClone = response.clone();
-            caches.open(cache).then((c) => {
-              try {
-                c.put(request, responseClone);
-              } catch (err) {
-                console.warn('[SW] Failed to cache request:', request.url, err);
-              }
-            });
+            try {
+              await (await caches.open(cache)).put(request, response.clone());
+            } catch (err) {
+              console.warn('[SW] Failed to cache request:', request.url, err);
+            }
           }
           return response;
-        })
-        .catch(() => {
+        } catch (_) {
           console.log('[SW] Fetch failed, trying cache for:', request.url);
-          return caches.match(request)
-            .then((response) => {
-              if (response) {
-                console.log('[SW] Served from cache:', request.url);
-                return response;
-              }
+          const response = await caches.match(request);
+          if (response) {
+            console.log('[SW] Served from cache:', request.url);
+            return response;
+          }
               
-              // For JS files, return empty module to prevent import errors offline
-              if (request.url.includes('.js')) {
-                return new Response('export default {};', {
-                  status: 200,
-                  headers: { 'Content-Type': 'application/javascript' },
-                });
-              }
-              
-              // Return offline page for navigation requests
-              if (request.destination === 'document') {
-                return caches.match(new URL('index.html', APP_BASE_URL).href);
-              }
-              
-              return new Response('Offline - resource not available', {
-                status: 503,
-                statusText: 'Service Unavailable',
-                headers: new Headers({ 'Content-Type': 'text/plain' }),
-              });
+          // For JS files, return empty module to prevent import errors offline
+          if (request.url.includes('.js')) {
+            return new Response('export default {};', {
+              status: 200,
+              headers: { 'Content-Type': 'application/javascript' },
             });
-        })
+          }
+              
+          // Return offline page for navigation requests
+          if (request.destination === 'document') {
+            return caches.match(new URL('index.html', APP_BASE_URL).href);
+          }
+              
+          return new Response('Offline - resource not available', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({ 'Content-Type': 'text/plain' }),
+          });
+        }
+      })()
     );
     return;
   }
@@ -171,38 +166,34 @@ self.addEventListener('fetch', (event) => {
   if (url.origin.includes('cdn.jsdelivr.net') || 
       url.origin.includes('cdnjs.cloudflare.com')) {
     event.respondWith(
-      caches.match(request)
-        .then((response) => {
-          if (response) {
-            console.log('[SW] Served from CDN cache:', request.url);
-            return response;
+      (async () => {
+        const cached = await caches.match(request);
+        if (cached) {
+          console.log('[SW] Served from CDN cache:', request.url);
+          return cached;
+        }
+
+        try {
+          const response = await fetch(request);
+          // Wait for the cache write before completing this fetch event.
+          if (response && response.status === 200) {
+            try {
+              await (await caches.open(CDN_CACHE)).put(request, response.clone());
+              console.log('[SW] Cached CDN resource:', request.url);
+            } catch (err) {
+              console.warn('[SW] Failed to cache CDN resource:', request.url, err);
+            }
           }
-          
-          return fetch(request)
-            .then((response) => {
-              // Only cache successful responses
-              if (response && response.status === 200) {
-                const responseClone = response.clone();
-                caches.open(CDN_CACHE).then((cache) => {
-                  try {
-                    cache.put(request, responseClone);
-                    console.log('[SW] Cached CDN resource:', request.url);
-                  } catch (err) {
-                    console.warn('[SW] Failed to cache CDN resource:', request.url, err);
-                  }
-                });
-              }
-              return response;
-            })
-            .catch((err) => {
-              console.error('[SW] Failed to fetch CDN resource:', request.url, err);
-              // If offline and not cached, fail gracefully
-              return new Response('', {
-                status: 503,
-                statusText: 'Service Unavailable',
-              });
-            });
-        })
+          return response;
+        } catch (err) {
+          console.error('[SW] Failed to fetch CDN resource:', request.url, err);
+          // If offline and not cached, fail gracefully
+          return new Response('', {
+            status: 503,
+            statusText: 'Service Unavailable',
+          });
+        }
+      })()
     );
     return;
   }
