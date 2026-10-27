@@ -48,7 +48,7 @@ async function main() {
   if (!fs.existsSync(INPUT_VIDEO)) throw new Error(`input video not found: ${INPUT_VIDEO}`);
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  log('Starting local server (sets the COOP/COEP headers SharedArrayBuffer needs)…');
+  log('Starting local server (docs/ over plain HTTP; the single-thread core needs no isolation headers)…');
   const server = spawn(process.execPath, ['server.js', String(PORT)], { cwd: REPO_ROOT, stdio: 'pipe' });
   server.stdout.on('data', d => process.stdout.write(`[server] ${d}`));
   server.stderr.on('data', d => process.stderr.write(`[server] ${d}`));

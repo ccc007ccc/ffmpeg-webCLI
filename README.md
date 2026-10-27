@@ -389,12 +389,12 @@ The editor works **completely offline** with intelligent caching and screen wake
 ```bash
 git clone https://github.com/tejaswigowda/ffmpeg-webCLI
 cd ffmpeg-webCLI
-node server.js          # serves docs/ with the required COOP/COEP headers
+node server.js          # serves docs/ at http://127.0.0.1:5500 (or: node server.js 8080)
 ```
 
-The server sets `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, which are required for `SharedArrayBuffer` (used by ffmpeg.wasm).
+The single-thread core in use (`@ffmpeg/core@0.12.10`) does not need `SharedArrayBuffer`, so the server sends no cross-origin isolation headers. `FFMPEG_ISOLATION=1 node server.js` sends `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` for experiments with a multi-thread core; note that COOP cuts the popup's link to its opener, so the hand-off below cannot work with it on.
 
-Or serve the `docs/` folder with any static server that sets those two headers:
+Or serve the `docs/` folder with any static server:
 
 ```bash
 # Alternative: using npx serve
@@ -402,6 +402,26 @@ npx serve docs
 ```
 
 ---
+
+## Use it from another page
+
+Besides the `#cmd=` recipes, a page that opens this tool in a popup can send it files and get one back, with no upload (`docs/handoff.js`, tested by `test/handoff.test.mjs`). The op is `mux`: a video, plus a narration WAV and/or WebVTT captions, in; one MP4 out, with the video **copied** (not re-encoded), the audio encoded to AAC and the captions as a soft `mov_text` track. [Strata](https://strataeditor.dev) uses it to make a single-file MP4 next to a published HLS render. Only the window that opened this one, at `https://strataeditor.dev` or `localhost`, is answered.
+
+```
+opener -> ffmpeg   { webcli: 1, type: 'job', id, op: 'mux', args: { language?: 'eng', audio_kbps?: 128 }, files: { 'video.mp4', 'audio.wav'?, 'captions.vtt'? } }
+ffmpeg -> opener   { webcli: 1, type: 'progress' | 'result' | 'error', id, ... }     result.files['out.mp4'], result.meta.command
+```
+
+Details of the contract:
+
+- `language` must match `^[a-z]{3}$`, otherwise `eng` is used; `audio_kbps` must be an integer from 32 to 320, otherwise 128.
+- The output keeps the video's full length (no `-shortest`); a shorter narration just ends early. `video.mp4` may be a plain MP4 or an fMP4 `init.mp4` + `seg*.m4s` joined into one file.
+- **Size limit:** all files of one job together may be at most **100 MB**; above that the job is answered with an `error` at once. ffmpeg.wasm keeps the input, the output and the `+faststart` second pass in its in-browser memory. Measured in Chromium (`node test/measure-large.mjs`): a 1080p60, 100 s video of 43 MB with its 18 MB narration took 3.5 s and peaked at about 1.1 to 1.6 GB resident for the whole browser; 97 MB in total peaked near 2.3 GB.
+- **Cancel:** a `cancel` message terminates ffmpeg.wasm (the job is answered with `error: Cancelled.`) and the core is loaded again for the next job; closing the popup also works.
+- **Errors** (`error` with a message): missing or empty files, an unknown op, over the size limit, ffmpeg exiting non-zero (the last log lines are in the message), the core failing to load or taking over two minutes, a window that is busy with its own work. The virtual files are deleted after every job, successful or not.
+- Only a window that opened this one, at an origin in `ALLOWED_ORIGINS` (`docs/handoff.js`), is answered; the same file is used by [dub-webCLI](https://github.com/tejaswigowda/dub-webCLI).
+
+Try it locally: `node server.js`, then open an opener page from `localhost` or `127.0.0.1` (any port). Do not serve with `Cross-Origin-Opener-Policy: same-origin`: the popup loses `window.opener` and can never answer. Tests: `node --test test/handoff.test.mjs` (the protocol, no browser) and `npm install && npm run test:e2e` (real Chromium and ffmpeg.wasm; needs the native `ffmpeg`/`ffprobe` for fixtures and checks).
 
 ## Part of the Web-CLI family
 

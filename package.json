@@ -1,0 +1,12 @@
+{
+  "name": "ffmpeg-webcli",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/handoff.test.mjs",
+    "test:e2e": "node --test --test-concurrency=1 --test-timeout=300000 test/handoff.e2e.test.mjs",
+    "start": "node server.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

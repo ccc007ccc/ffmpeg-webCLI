@@ -8,14 +8,15 @@
  * - CDN resources caching (ffmpeg library, utilities, icons)
  */
 
-const CACHE_NAME = 'ffmpeg-editor-v4';
-const RUNTIME_CACHE = 'ffmpeg-editor-runtime-v4';
-const CDN_CACHE = 'ffmpeg-editor-cdn-v4';
+const CACHE_NAME = 'ffmpeg-editor-v5';
+const RUNTIME_CACHE = 'ffmpeg-editor-runtime-v5';
+const CDN_CACHE = 'ffmpeg-editor-cdn-v5';
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/worker.js',
+  '/handoff.js',
   '/coi-serviceworker.js',
   '/manifest.json',
 ];

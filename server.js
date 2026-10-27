@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /**
  * Static file server for the docs/ folder.
- * Sets Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers
- * so SharedArrayBuffer (required by ffmpeg-core-mt pthreads) is available
- * without needing the coi-serviceworker client-side workaround.
+ * The single-thread core in use (@ffmpeg/core 0.12.10) does not need SharedArrayBuffer, so no
+ * cross-origin isolation headers are sent by default. Cross-Origin-Opener-Policy: same-origin also
+ * severs window.opener, which the hand-off popup (docs/handoff.js) depends on, as it does on the deployed site.
  *
- * Usage:  node server.js [port]
- *   e.g.  node server.js 8080   (default: 8080)
+ * Set FFMPEG_ISOLATION=1 to send COOP + COEP + CORP, e.g. to try the multi-thread core (ffmpeg-core-mt).
+ *
+ * Usage:  node server.js [port]                       (default: 5500)
+ *         FFMPEG_ISOLATION=1 node server.js 8080
  */
 
 const http = require('http');
@@ -14,6 +16,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const PORT  = parseInt(process.argv[2] || '5500', 10);
+const ISOLATION = process.env.FFMPEG_ISOLATION === '1';
 const ROOT  = path.join(__dirname, 'docs');
 
 const MIME = {
@@ -60,11 +63,13 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // ── Headers required for SharedArrayBuffer / cross-origin isolation ──
-    res.setHeader('Cross-Origin-Opener-Policy',   'same-origin');
-    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-    // Allow CDN resources (jsDelivr) to load inside the isolated context
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    // ── Headers for SharedArrayBuffer / cross-origin isolation (opt-in) ──
+    if (ISOLATION) {
+      res.setHeader('Cross-Origin-Opener-Policy',   'same-origin');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+      // Allow CDN resources (jsDelivr) to load inside the isolated context
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
 
     // ── Cache headers for PWA offline support ──
     const baseName = path.basename(filePath);
@@ -92,6 +97,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Serving docs/ at http://127.0.0.1:${PORT}`);
-  console.log('COOP + COEP headers active — SharedArrayBuffer enabled');
+  console.log(ISOLATION ? 'COOP + COEP headers active — SharedArrayBuffer enabled'
+                        : 'No COOP/COEP headers (set FFMPEG_ISOLATION=1 to send them)');
   console.log('Press Ctrl+C to stop.');
 });

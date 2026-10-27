@@ -1189,6 +1189,26 @@
 </div><!-- /container -->
 
 <script type="module">
+// Hand-off from another page (Strata). This is a module of its own so that it still answers, with an error instead of silence, when the main
+// module below cannot start (for example the ffmpeg CDN is blocked), and so that a missing handoff.js cannot take the editor down with it.
+// The main module calls window.__handoffProvide( handler ) once ffmpeg.wasm's library has loaded.
+import { serve } from './handoff.js';
+
+const LIBRARY_WAIT_MS = 30000;
+let provide;
+const implementation = new Promise( ( resolve ) => { provide = resolve; } );
+window.__handoffProvide = provide;
+
+serve( { tool: 'ffmpeg.webcli.app', version: '1', handlers: {
+	mux: async ( job ) => {
+		let timer;
+		const late = new Promise( ( _, reject ) => { timer = setTimeout( () => reject( new Error( 'ffmpeg.wasm could not be started (is cdn.jsdelivr.net blocked?).' ) ), window.__handoffLibraryMs || LIBRARY_WAIT_MS ); } );
+		try { return await ( await Promise.race( [ implementation, late ] ) )( job ); } finally { clearTimeout( timer ); }
+	},
+} } );
+</script>
+
+<script type="module">
 import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js';
 import { fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js';
 
@@ -5500,6 +5520,135 @@ function handleHashCommand() {
 
 window.addEventListener('hashchange', handleHashCommand);
 handleHashCommand(); // check for a #cmd= present at initial page load
+
+// ── Hand-off from another page (Strata): op 'mux' ─────────────────────────────
+// Another page that opened this one in a popup can send it a video, a narration WAV and a WebVTT file, and gets back ONE mp4: the video is
+// copied (never re-encoded), the audio is encoded to AAC, the captions become a soft mov_text track the viewer can switch off.
+// The protocol is in handoff.js (served by the early module above). Nothing leaves the browser.
+const HANDOFF_MAX_BYTES = 100 * 1024 * 1024;   // all files of one job together; see "Size limit" in the README
+const HANDOFF_LOAD_MS = 120000;                // ffmpeg-core.wasm is ~31 MB
+
+function handoffBytes(name, v) {
+  if (v instanceof ArrayBuffer) return new Uint8Array(v);
+  if (ArrayBuffer.isView(v)) return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  throw new Error(`'${name}' must be an ArrayBuffer.`);
+}
+
+// Another job (or the normal UI) is using the virtual filesystem: the Process buttons are disabled while an input is loaded, or spinning.
+function handoffUiBusy() {
+  const hasInput = !!inputFile || (batchMode && batchQueue.length > 0);
+  return (document.getElementById('processBtn').disabled && hasInput)
+    || !!document.querySelector('#processBtn .fa-spin, #processStackBtn .fa-spin')
+    || document.body.dataset.hashCmdStatus === 'running';
+}
+
+// ffmpeg.wasm has no clean cancel: terminate() kills the worker (and its filesystem). The next job loads a fresh core.
+function resetFFmpeg() {
+  try { ffmpeg.terminate(); } catch (_) {}
+  document.getElementById('statusDot').className = 'dot';
+  document.getElementById('statusText').textContent = 'ffmpeg stopped; it loads again on the next job';
+  const lb = document.getElementById('loadBtn');
+  lb.innerHTML = '<i class="fas fa-play"></i> Load ffmpeg (~31 MB)';
+  lb.className = 'btn btn-primary ml-auto';
+  lb.disabled = false;
+}
+
+async function handoffMux({ args, files, progress, signal }) {
+  const video = files['video.mp4'];
+  const audio = files['audio.wav'];
+  const captions = files['captions.vtt'];
+  if (!video) throw new Error("The job needs a file named 'video.mp4'.");
+  if (!audio && !captions) throw new Error("The job needs 'audio.wav' or 'captions.vtt' to add to the video.");
+  const inputs = { 'video.mp4': handoffBytes('video.mp4', video) };
+  if (audio) inputs['audio.wav'] = handoffBytes('audio.wav', audio);
+  if (captions) inputs['captions.vtt'] = handoffBytes('captions.vtt', captions);
+  for (const [n, b] of Object.entries(inputs)) if (!b.length) throw new Error(`'${n}' is empty.`);
+  const total = Object.values(inputs).reduce((t, b) => t + b.length, 0);
+  if (total > HANDOFF_MAX_BYTES) {
+    const mb = (n) => (n / 1048576).toFixed(0);
+    throw new Error(`The files total ${mb(total)} MB; this tool takes at most ${mb(HANDOFF_MAX_BYTES)} MB per job because ffmpeg.wasm works in a 2 GB in-browser memory.`);
+  }
+  if (handoffUiBusy()) throw new Error('busy: this window is already processing another file.');
+
+  const lang = typeof args.language === 'string' && /^[a-z]{3}$/.test(args.language) ? args.language : 'eng';
+  const kbps = Number.isInteger(args.audio_kbps) && args.audio_kbps >= 32 && args.audio_kbps <= 320 ? args.audio_kbps : 128;
+
+  const cmd = ['-i', 'video.mp4'];
+  const maps = ['-map', '0:v:0'];
+  let next = 1;
+  if (audio) { cmd.push('-i', 'audio.wav'); maps.push('-map', `${next++}:a:0`); }
+  if (captions) { cmd.push('-i', 'captions.vtt'); maps.push('-map', `${next++}:s:0`); }
+  cmd.push(...maps, '-c:v', 'copy');
+  if (audio) cmd.push('-c:a', 'aac', '-b:a', `${kbps}k`, '-ar', '48000', '-ac', '2', '-metadata:s:a:0', `language=${lang}`);
+  if (captions) cmd.push('-c:s', 'mov_text', '-metadata:s:s:0', `language=${lang}`);
+  cmd.push('-movflags', '+faststart', 'out.mp4');
+  const command = 'ffmpeg ' + cmd.join(' ');
+
+  const pbtn = document.getElementById('processBtn');
+  let cancelled = false;
+  let reset = false;
+  const reset_ = () => { if (!reset) { reset = true; resetFFmpeg(); } };
+  const onAbort = () => { cancelled = true; reset_(); };
+  signal.addEventListener('abort', onAbort);
+  const tail = [];
+  const onLog = ({ message }) => { tail.push(message); if (tail.length > 4) tail.shift(); };
+  const onProgress = ({ progress: p }) => { if (Number.isFinite(p)) progress(Math.max(0, Math.min(1, p)), 'Muxing\u2026'); };
+  let timer;
+  try {
+    pbtn.disabled = true;
+    pbtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Muxing\u2026';
+    showHashCmdBanner('Muxing for the other page. Nothing leaves this browser.', 'ok');
+    if (signal.aborted) throw new Error('Cancelled.');
+
+    if (!isLoaded()) {
+      const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out loading ffmpeg.wasm.')), window.__handoffLoadMs || HANDOFF_LOAD_MS); });
+      await Promise.race([loadFFmpeg(), late]);
+      if (cancelled) throw new Error('Cancelled.');
+      if (!isLoaded()) throw new Error('ffmpeg.wasm could not be loaded: ' + document.getElementById('statusText').textContent);
+    }
+
+    ffmpeg.on('progress', onProgress);
+    ffmpeg.on('log', onLog);
+    let code;
+    try {
+      for (const [n, b] of Object.entries(inputs)) await ffmpeg.writeFile(n, b);
+      addLog(command, 'ok');
+      code = await ffmpeg.exec(cmd);
+    } catch (err) {
+      // ffmpeg.wasm rejects when the wasm instance itself dies (out of memory, abort): it cannot be reused
+      reset_();
+      throw new Error('ffmpeg.wasm stopped: ' + (err && err.message ? err.message : String(err)));
+    }
+    if (cancelled) throw new Error('Cancelled.');
+    if (code !== 0) throw new Error(`ffmpeg exited with code ${code}: ${tail.filter(Boolean).slice(-2).join(' / ') || 'see the log'}`);
+    let out;
+    try { out = await ffmpeg.readFile('out.mp4'); } catch (_) { out = null; }
+    if (!out || out.length < 1000) throw new Error('ffmpeg produced no usable output.');
+    showHashCmdBanner('Sent. You can close this window.', 'ok');
+    return { files: { 'out.mp4': out }, meta: { command, bytes: out.length } };
+  } catch (err) {
+    const msg = cancelled ? 'Cancelled.' : (err && err.message ? err.message : String(err));
+    showHashCmdBanner(cancelled ? 'Cancelled by the other page.' : 'Mux failed: ' + msg, 'err');
+    addLog('Hand-off: ' + msg, 'err');
+    throw new Error(msg);
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', onAbort);
+    if (!reset) {
+      ffmpeg.off('progress', onProgress);
+      ffmpeg.off('log', onLog);
+      // A virtual file that cannot be deleted means the instance is not healthy; start over rather than leak or hang.
+      const gone = await Promise.race([
+        (async () => { for (const n of [...Object.keys(inputs), 'out.mp4']) { try { await ffmpeg.deleteFile(n); } catch (_) { /* not there */ } } return true; })(),
+        new Promise((r) => setTimeout(() => r(false), 10000)),
+      ]);
+      if (!gone) reset_();
+    }
+    syncProcessBtn();
+  }
+}
+window.__handoffProvide?.(handoffMux);
+window.__handoffFiles = async () => (await ffmpeg.listDir('/')).filter((n) => !n.isDir).map((n) => n.name);   // for tests: what is left in the virtual filesystem
 
 // ── Expose all functions to window for inline event handlers ─────────────────────────
 Object.assign(window, {
