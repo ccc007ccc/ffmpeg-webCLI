@@ -117,6 +117,7 @@
     'Dimensions are filled from the source video. Clear a field or set to -1 to preserve aspect ratio. Lower CRF = higher quality.': '尺寸会从源视频自动读取。清空任一栏或设为 -1 可保持宽高比；CRF 越低画质越高。',
     'Removes all embedded metadata (GPS, camera info, creation date, etc.) from the output file. Video and audio are re-encoded.': '移除输出文件中的所有元数据（GPS、相机信息、创建日期等），并重新编码视频和音频。',
     'audio is extracted, transcribed on-device with Whisper via Transformers.js, and embedded as soft subtitles. Zero data leaves your browser.': '音频会在设备上提取并由 Whisper 转录为软字幕，全程在浏览器本地完成，不会上传数据。',
+    'FFmpeg starts automatically when cached; load it on demand otherwise': '有缓存时会自动启动 FFmpeg；没有缓存时，使用前再手动载入',
     'FFmpeg is not running; cached files are reused when available': 'FFmpeg 当前未运行；有缓存时会从浏览器缓存读取核心文件',
     'Preparing ffmpeg…': '正在准备 FFmpeg…',
     'Initializing ffmpeg from browser cache…': '正在从浏览器缓存初始化 FFmpeg…',

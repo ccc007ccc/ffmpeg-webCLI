@@ -26,6 +26,7 @@ let watermarkPreviewLayout = null;
 const WATERMARK_TEXT_FILE = 'watermark-text.txt';
 const WATERMARK_FONT_FILE = 'watermark-font.ttf';
 const FFMPEG_CDN_CACHE = 'ffmpeg-editor-cdn-v6';
+let ffmpegLoadPromise = null;
 let currentObjectURL = null;  // object URL backing the input <video> preview
 let vidDur    = 0;
 let currentOp    = 'convert';
@@ -384,16 +385,26 @@ async function ffmpegCoreFilesCached(coreURL, wasmURL) {
   }
 }
 
-async function updateFFmpegCacheHint() {
+async function updateFFmpegCacheHint(autoStart = false) {
   const esmBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
   const coreURL = `${esmBase}/ffmpeg-core.js`;
   const wasmURL = `${esmBase}/ffmpeg-core.wasm`;
   if (isLoaded() || !(await ffmpegCoreFilesCached(coreURL, wasmURL))) return;
+  if (autoStart) return loadFFmpeg();
   document.getElementById('statusText').textContent = 'FFmpeg is not running; cached files are reused when available';
   document.getElementById('loadBtn').innerHTML = '<i class="fas fa-play"></i> Start cached FFmpeg';
 }
 
-async function loadFFmpeg() {
+function loadFFmpeg() {
+  if (isLoaded()) return Promise.resolve();
+  if (ffmpegLoadPromise) return ffmpegLoadPromise;
+  ffmpegLoadPromise = performFFmpegLoad().finally(() => {
+    ffmpegLoadPromise = null;
+  });
+  return ffmpegLoadPromise;
+}
+
+async function performFFmpegLoad() {
   const btn  = document.getElementById('loadBtn');
   const dot  = document.getElementById('statusDot');
   const txt  = document.getElementById('statusText');
@@ -3851,7 +3862,7 @@ if ('serviceWorker' in navigator) {
         scope: './',
         updateViaCache: 'none',
       });
-      updateFFmpegCacheHint();
+      await updateFFmpegCacheHint(true);
 
       // Check for updates periodically
       setInterval(async () => {
@@ -3880,7 +3891,8 @@ if ('serviceWorker' in navigator) {
       window.addEventListener('offline', () => {
         addLog('Offline - working with cached resources', 'warn', 'fas fa-triangle-exclamation');
       });
-    } catch (err) {
+    } catch {
+      await updateFFmpegCacheHint(true);
     }
   });
 }
