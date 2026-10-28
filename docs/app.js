@@ -378,7 +378,10 @@ async function ffmpegCoreFilesCached(coreURL, wasmURL) {
   if (!('caches' in window)) return false;
   try {
     const cache = await caches.open(FFMPEG_CDN_CACHE);
-    const [core, wasm] = await Promise.all([cache.match(coreURL), cache.match(wasmURL)]);
+    const [core, wasm] = await Promise.all([
+      cache.match(coreURL, { ignoreVary: true }),
+      cache.match(wasmURL, { ignoreVary: true }),
+    ]);
     return Boolean(core && wasm);
   } catch (_) {
     return false;

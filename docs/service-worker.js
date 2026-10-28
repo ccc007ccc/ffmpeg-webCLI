@@ -25,6 +25,7 @@ const STATIC_ASSETS = [
   'handoff.js',
   'coi-serviceworker.js',
   'manifest.json',
+  'manifest.zh-CN.json',
 ].map((path) => new URL(path, APP_BASE_URL).href);
 
 const CDN_RESOURCES = [
@@ -167,7 +168,7 @@ self.addEventListener('fetch', (event) => {
       url.origin.includes('cdnjs.cloudflare.com')) {
     event.respondWith(
       (async () => {
-        const cached = await caches.match(request);
+        const cached = await caches.match(request, { ignoreVary: true });
         if (cached) {
           console.log('[SW] Served from CDN cache:', request.url);
           return cached;
@@ -215,7 +216,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        return caches.match(request)
+        return caches.match(request, { ignoreVary: true })
           .then((response) => response || new Response('Offline', { status: 503 }));
       })
   );

@@ -42,8 +42,41 @@ const T = {
 
 let ffmpeg = null;
 
+const CDN_CACHE_NAME = 'ffmpeg-editor-cdn-v6';
+
+async function fetchPersisted(url) {
+  let cache;
+  try {
+    if ('caches' in self) {
+      cache = await caches.open(CDN_CACHE_NAME);
+      const cached = await cache.match(url, { ignoreVary: true });
+      if (cached) return cached;
+    }
+  } catch (error) {
+    console.warn('[worker] Could not read FFmpeg cache:', error);
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`FFmpeg resource fetch failed: ${response.status} ${url}`);
+  if (cache) {
+    try {
+      await cache.put(url, response.clone());
+    } catch (error) {
+      // Cache quota / privacy settings must not prevent an online load.
+      console.warn('[worker] Could not persist FFmpeg resource:', error);
+    }
+  }
+  return response;
+}
+
 async function load({ coreURL, wasmURL }) {
   const first = !ffmpeg;
+
+  // Explicitly populate the same cache checked by the page on its next visit.
+  // Worker initiated requests are not consistently captured by the page's
+  // service worker, so relying on the service worker alone leaves the UI stuck
+  // behind the manual load button after a successful first run.
+  await (await fetchPersisted(coreURL)).arrayBuffer();
 
   // Dynamic import — import.meta.url inside ffmpeg-core.js resolves to the
   // CDN base URL, so any of its own relative imports work correctly.
@@ -57,8 +90,7 @@ async function load({ coreURL, wasmURL }) {
   // fetches and blob-URL creation and call WebAssembly.instantiate(binary)
   // directly. This is the only reliable way to avoid range-request errors.
   self.postMessage({ type: T.LOG, data: { type: 'stderr', message: '[worker] Fetching WASM binary…' } });
-  const wasmResp = await fetch(wasmURL);
-  if (!wasmResp.ok) throw new Error(`WASM fetch failed: ${wasmResp.status} ${wasmURL}`);
+  const wasmResp = await fetchPersisted(wasmURL);
   const wasmBinary = await wasmResp.arrayBuffer();
   self.postMessage({ type: T.LOG, data: { type: 'stderr', message: '[worker] WASM binary loaded, initialising…' } });
 

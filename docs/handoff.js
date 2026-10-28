@@ -47,7 +47,15 @@ export function serve( { tool, version, handlers, info = {}, allowed = ALLOWED_O
 		if ( m.type === 'cancel' ) { if ( running && running.id === m.id ) running.abort.abort(); return; }
 		if ( m.type !== 'job' ) return;
 
-		const reply = ( msg, transfer ) => post( e.origin, { id: m.id, ...msg }, transfer );
+		const reply = ( msg, transfer ) => {
+			const localized = { ...msg };
+			const translate = window.ffmpegWebCliI18n && window.ffmpegWebCliI18n.localize;
+			if ( typeof translate === 'function' ) {
+				if ( localized.type === 'error' && typeof localized.message === 'string' ) localized.message = translate( localized.message );
+				if ( localized.type === 'progress' && typeof localized.text === 'string' ) localized.text = translate( localized.text );
+			}
+			post( e.origin, { id: m.id, ...localized }, transfer );
+		};
 		if ( running ) return reply( { type: 'error', message: 'This tool is already running another job.' } );
 		const handler = handlers[ m.op ];
 		if ( ! handler ) return reply( { type: 'error', message: `Unknown op '${ m.op }'. This tool does: ${ ops.join( ', ' ) }.` } );

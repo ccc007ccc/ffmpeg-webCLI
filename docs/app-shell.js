@@ -131,6 +131,132 @@
     'Clear Queue': '清空队列', 'Load ffmpeg & Process': '载入 FFmpeg 并处理', 'Process Queue': '处理队列',
   };
 
+  // Extra UI/status/error phrases live separately from the static page labels.
+  // Keeping runtime messages here makes additions auditable without mixing
+  // operation names and message formatting rules into the DOM observer.
+  Object.assign(translations, {
+    'MP4, WebM, MOV, AVI, MKV, GIF…': '支持 MP4、WebM、MOV、AVI、MKV、GIF 等格式',
+    '(18=best · 28=default · 51=worst)': '（18 为最佳画质 · 28 为默认值 · 51 为最低画质）',
+    'Included Noto fonts support Simplified Chinese.': '内置思源字体，可显示简体中文。',
+    'auto': '自动', 'fast': '快速', 'px': '像素',
+    'Screen will stay on during processing': '处理期间将保持屏幕常亮',
+    'Using same-origin worker proxy (./worker.js).': '使用同源 Worker 代理（./worker.js）。',
+    'Using direct CDN URL for ffmpeg-core.js.': '从 CDN 直接载入 ffmpeg-core.js。',
+    'Using direct CDN URL for ffmpeg-core.wasm.': '从 CDN 直接载入 ffmpeg-core.wasm。',
+    'ffmpeg loaded.': 'FFmpeg 已载入。', 'Done!': '处理完成！', 'Loaded': '已载入',
+    'Batch mode enabled. Drop multiple files to queue them.': '已启用批量模式，可拖入多个文件加入队列。',
+    'Batch mode disabled. Single file mode active.': '已关闭批量模式，当前为单文件模式。',
+    'Batch queue cleared.': '已清空批量队列。', 'Batch queue is empty.': '批量队列为空。',
+    'No completed files to download.': '没有可下载的已完成文件。', 'No completed files to download': '没有可下载的已完成文件',
+    'Creating ZIP archive…': '正在创建 ZIP 压缩包…',
+    'JSZip library not loaded - cannot create ZIP. Downloading individual files instead.': 'ZIP 组件尚未载入，无法打包；将改为逐个下载文件。',
+    'App installed successfully!': '应用已成功安装！',
+    'New version available - reload to update': '发现新版本，请刷新页面更新',
+    'Back online': '网络已恢复', 'Offline - working with cached resources': '当前离线，正在使用缓存资源',
+    'Muxing…': '正在封装…', 'Muxing for the other page. Nothing leaves this browser.': '正在为另一个页面封装文件，所有数据均留在此浏览器中。',
+    'Sent. You can close this window.': '已发送，可以关闭此窗口。',
+    'Transcription complete': '转录完成', 'Encoding with subtitles…': '正在编码字幕…',
+    'Loading model…': '正在载入模型…', 'Transcribing…': '正在转录…',
+    'Loading ffmpeg…': '正在载入 FFmpeg…', 'Embedding…': '正在嵌入…',
+    'Batch Processing…': '正在批量处理…', 'Processing Stack…': '正在处理操作链…', 'Batch Stack…': '正在批量处理操作链…',
+    'ffmpeg.wasm ready - you can now embed subtitles': 'ffmpeg.wasm 已就绪，现在可以嵌入字幕',
+    'Warning: Could not preload ffmpeg. It will attempt to load when you click Confirm & Embed.': '警告：无法预载 FFmpeg；点击“确认并嵌入”时会再次尝试载入。',
+    'Warning: No overlay image selected. Skipping logo overlay.': '警告：没有选择叠加图片，已跳过图片水印。',
+    'Logo overlay in batch mode requires manual per-file configuration. Using stream copy.': '批量模式下的图片叠加需要逐文件设置；当前将直接复制视频流。',
+    'VP9 WebM failed; retrying with VP8 (libvpx) WebM…': 'VP9 WebM 编码失败，正在改用 VP8（libvpx）重试…',
+    'WebM (libvpx) could not be produced in this ffmpeg.wasm build; encoding H.264 and packaging it under the .webm name instead.': '此 ffmpeg.wasm 版本无法生成 libvpx WebM；将改用 H.264 编码，并使用 .webm 扩展名打包。',
+    'WebM in ffmpeg.wasm: using VP8 low-memory path for stability.': 'ffmpeg.wasm 正在使用低内存 VP8 路径提高 WebM 编码稳定性。',
+    'VP9 encode failed in ffmpeg.wasm; retrying with WebM VP8 low-memory fallback…': 'ffmpeg.wasm 中的 VP9 编码失败，正在改用低内存 VP8 模式重试…',
+    'WebM encode still unstable; retrying emergency mode (VP8, no-audio, 426w)…': 'WebM 编码仍不稳定，正在尝试应急模式（VP8、无音频、宽度 426 像素）…',
+    'WebM (libvpx) is unsupported in this ffmpeg.wasm build; producing MP4 (H.264) instead.': '此 ffmpeg.wasm 版本不支持 libvpx WebM，将改为生成 MP4（H.264）。',
+    'WASM binary loaded, initialising…': 'WASM 二进制文件已载入，正在初始化…',
+    '[worker] Fetching WASM binary…': '[Worker] 正在获取 WASM 二进制文件…',
+    'ffmpeg.wasm could not be started (is cdn.jsdelivr.net blocked?).': '无法启动 ffmpeg.wasm（cdn.jsdelivr.net 是否被拦截？）',
+    'command must be a JSON object': '命令必须是 JSON 对象',
+    'This tool is already running another job.': '此工具正在处理另一个任务。',
+    'Processing': '处理中', 'Complete': '已完成', 'Loading': '正在载入', 'Transcribing': '正在转录',
+    'Preemptive load incomplete - loading ffmpeg now…': '预加载尚未完成，正在载入 FFmpeg…',
+    'Click to add files': '点击添加文件', 'or drag & drop multiple local files': '或拖放多个本地文件',
+    'File:': '文件：', 'Size:': '大小：', 'Duration:': '时长：', 'Resolution:': '分辨率：',
+    'Est. bitrate:': '估算码率：', 'Type:': '类型：',
+    'Input:': '输入：', 'Output:': '输出：', 'Status:': '状态：', '✓ Complete': '✓ 已完成',
+    'Move up': '上移', 'Move down': '下移', '+ 2nd file': '+ 第二个文件',
+    'Color-bar watermark': '彩条水印', 'Cap framerate to 24 fps': '限制帧率为 24 fps',
+    'Convert to grayscale': '转换为灰度', 'Loudness normalize': '响度标准化',
+    'Lossless remux (copy)': '无损封装（复制）', 'Letterbox / pillarbox': '添加上下 / 左右黑边',
+    'Stabilize (deshake)': '视频防抖', 'Vignette effect': '暗角效果',
+    'Extract audio as WAV': '提取为 WAV 音频', 'Extract first frame': '提取第一帧',
+    'Replace audio track': '替换音轨', 'smaller': '更小', 'larger': '更大', 'same size': '大小相同',
+    'Batch mode enabled. Drop multiple files to queue them.': '已启用批量模式，可拖入多个文件加入队列。',
+    'Batch mode disabled. Single file mode active.': '已关闭批量模式，当前为单文件模式。',
+    'Writing input file…': '正在写入输入文件…', 'Writing subtitle file…': '正在写入字幕文件…',
+    'Writing logo file…': '正在写入图片水印文件…', 'Writing music file…': '正在写入音乐文件…',
+    'Writing second clip…': '正在写入第二个片段…', 'Writing second video…': '正在写入第二个视频…',
+    'Writing overlay video…': '正在写入叠加视频…', 'Writing SRT subtitle file…': '正在写入 SRT 字幕文件…',
+    'Rendering subtitle overlays (this re-encodes the video)…': '正在绘制字幕（需要重新编码视频）…',
+    'Using soft subtitle stream embedding…': '正在以软字幕方式嵌入…',
+    'Using soft subtitle stream embedding': '正在以软字幕方式嵌入',
+    'Deep scan complete — see log above for full codec / stream details.': '详细扫描完成，编解码器和流信息见上方日志。',
+    'Converting frame to JPEG…': '正在将画面转换为 JPEG…', 'Extracting audio track...': '正在提取音轨…',
+    'Reading audio data...': '正在读取音频数据…', 'Verifying ffmpeg.wasm is loaded and ready…': '正在确认 ffmpeg.wasm 已载入并就绪…',
+    'Preemptive load incomplete - loading ffmpeg now…': '预加载尚未完成，正在载入 FFmpeg…',
+    'Ensuring ffmpeg is fully initialized…': '正在确认 FFmpeg 已完成初始化…',
+    'Restoring input file to ffmpeg filesystem:': '正在将输入文件恢复到 FFmpeg 文件系统：',
+    'Input file restored successfully': '已成功恢复输入文件',
+    'Releasing transcription engine from memory…': '正在释放转录引擎内存…',
+    'Embedding subtitles…': '正在嵌入字幕…', 'Rendering caption overlays…': '正在绘制字幕…',
+    'App installed successfully!': '应用已成功安装！',
+    'Load a video file to see its properties.': '载入视频后可查看媒体属性。',
+    'Load a video to crop.': '请先载入视频以进行裁剪。',
+    'Load a video to preview the crop area.': '载入视频后可预览裁剪区域。',
+    'Waiting for ffmpeg command…': '等待 FFmpeg 命令…',
+    'JPEG conversion failed': 'JPEG 转换失败',
+    'Failed to load extracted frame for JPEG conversion': '无法载入提取的画面并转换为 JPEG',
+    'Enter the watermark text first.': '请先输入水印文字。',
+    'Choose a custom font file or select a built-in font.': '请选择自定义字体文件或内置字体。',
+    'Choose a custom TTF / OTF font file.': '请选择自定义 TTF / OTF 字体文件。',
+    'Choose a custom font file or select a built-in font.': '请选择自定义字体文件或内置字体。',
+    'Please choose a subtitle file first.': '请先选择字幕文件。',
+    'Could not parse any subtitle cues (supported: SRT, VTT, ASS/SSA).': '未能解析字幕内容（支持 SRT、VTT、ASS/SSA）。',
+    'Please choose a logo/image file first.': '请先选择图片水印文件。',
+    'Please choose a music/audio file first.': '请先选择音乐或音频文件。',
+    'Please choose a second clip to append.': '请选择要拼接的第二个片段。',
+    'Please choose a second video file first.': '请先选择第二个视频文件。',
+    'Please choose an overlay video file first.': '请先选择要叠加的视频文件。',
+    'Audio file is empty or could not be read': '音频文件为空或无法读取',
+    'Transcript is empty': '字幕文本为空',
+    'FFmpeg failed to initialize properly. Please try again or reload the page.': 'FFmpeg 初始化失败，请重试或刷新页面。',
+    'Input file not available - original file lost': '找不到输入文件，原始文件可能已丢失',
+    'No caption cues found to burn.': '没有可烧录的字幕内容。',
+    'No operations yet — configure an op above and click “Add to Stack”.': '还没有操作；请先配置上方选项，再点击“加入操作链”。',
+    '(stack is empty — add operations above)': '（操作链为空，请先添加操作）',
+    '(load a file first)': '（请先载入文件）',
+    'Process a video to see the result here': '处理视频后，结果会显示在这里',
+    '-- Select file to preview --': '-- 选择要预览的文件 --',
+    'Load failed:': '载入失败：', 'Load error:': '载入错误：', 'Error:': '错误：',
+    'ffmpeg not loaded - click "Load ffmpeg" to begin': 'FFmpeg 尚未载入，请先启动 FFmpeg',
+    'ffmpeg loaded and ready': 'FFmpeg 已载入并就绪',
+    'ffmpeg stopped; it loads again on the next job': 'FFmpeg 已停止，将在下次处理时重新载入',
+    'This tool is already running another job.': '此工具正在处理另一个任务。',
+    'Unknown error': '未知错误', 'unknown error': '未知错误',
+    'Cancelled.': '已取消。', 'Cancelled by the other page.': '已由另一个页面取消。',
+    'ffmpeg produced no usable output.': 'FFmpeg 未生成可用的输出文件。',
+    'ffmpeg.wasm could not be started (is cdn.jsdelivr.net blocked?).': '无法启动 ffmpeg.wasm（cdn.jsdelivr.net 是否被拦截？）',
+    'ffmpeg.wasm could not be loaded:': '无法载入 ffmpeg.wasm：',
+    'Timed out loading ffmpeg.wasm.': '载入 ffmpeg.wasm 超时。',
+    'ffmpeg.wasm stopped:': 'ffmpeg.wasm 已停止：',
+    'busy: this window is already processing another file.': '当前窗口正在处理另一个文件。',
+    'Audio file is empty or could not be read': '音频文件为空或无法读取',
+    'Unknown message type:': '未知消息类型：', 'createFFmpegCore not found in': '未在以下地址找到 createFFmpegCore：',
+    'WASM fetch failed:': 'WASM 获取失败：', 'FFmpeg resource fetch failed:': 'FFmpeg 资源获取失败：',
+    'Invalid #cmd —': '#cmd 命令无效：', 'Hash command error:': '哈希命令错误：',
+    'Hash command rejected:': '哈希命令已拒绝：', 'Hash command: running': '正在运行哈希命令',
+    'Hash command preloaded:': '已载入哈希命令：', 'Hand-off:': '任务交接：',
+    'This tool does:': '此工具支持的操作：',
+    '100% local. Data never leaves your browser.': '100% 本地处理，文件不会离开浏览器。',
+    'Included Noto fonts support Simplified Chinese.': '内置思源字体，可显示简体中文。',
+  });
+
   const operationNames = {
     convert: '格式转换', resizecompress: '缩放与压缩', audio: '提取音频', mute: '静音', gif: '转为 GIF', speed: '变速',
     rotate: '旋转 / 翻转', crop: '裁剪', thumbnail: '提取缩略图', reverse: '倒放', fade: '淡入 / 淡出', adjust: '画面调整',
@@ -176,13 +302,310 @@
     if (match) return `队列中有 ${match[1]} 个文件`;
     match = key.match(/^Selection:\s*(.*)$/);
     if (match) return `选中范围：${match[1]}`;
+    match = key.match(/^→ stored as (.+)$/);
+    if (match) return `→ 保存为 ${match[1]}`;
+    match = key.match(/^(\d+) x (\d+) at X (\d+), Y (\d+)$/);
+    if (match) return `${match[1]} × ${match[2]}，位置：X ${match[3]}、Y ${match[4]}`;
+    match = key.match(/^Crop (\d+)×(\d+)$/);
+    if (match) return `裁剪 ${match[1]}×${match[2]}`;
+    match = key.match(/^Scale (\d+)×(\d+)$/);
+    if (match) return `缩放至 ${match[1]}×${match[2]}`;
+    match = key.match(/^Rotate \/ Flip — (.+)$/);
+    if (match) return `旋转 / 翻转 — ${{ '90° CW': '顺时针 90°', '90° CCW': '逆时针 90°', '180°': '180°', 'H-flip': '水平翻转', 'V-flip': '垂直翻转', 'HV-flip': '水平和垂直翻转' }[match[1]] || match[1]}`;
+    match = key.match(/^Adjust \(br (.+) · con (.+) · sat (.+)\)$/);
+    if (match) return `画面调整（亮度 ${match[1]} · 对比度 ${match[2]} · 饱和度 ${match[3]}）`;
+    match = key.match(/^Fade in ([\d.]+)s \/ out ([\d.]+)s$/);
+    if (match) return `淡入 ${match[1]} 秒 / 淡出 ${match[2]} 秒`;
+    match = key.match(/^Denoise (.+)$/);
+    if (match) return `降噪：${match[1]}`;
+    match = key.match(/^(Sharpen|Blur) (.+)$/);
+    if (match) return `${match[1] === 'Sharpen' ? '锐化' : '模糊'} ${match[2]}`;
+    match = key.match(/^Speed ([\d.]+)×$/);
+    if (match) return `速度 ${match[1]}×`;
+    match = key.match(/^Pad (\d+)×(\d+)$/);
+    if (match) return `补边至 ${match[1]}×${match[2]}`;
+    match = key.match(/^Volume (\d+)%$/);
+    if (match) return `音量 ${match[1]}%`;
+    match = key.match(/^(\d+)% smaller$/);
+    if (match) return `缩小 ${match[1]}%`;
+    match = key.match(/^(\d+)% larger$/);
+    if (match) return `增大 ${match[1]}%`;
     match = key.match(/^Process Stack(?:\s*\((\d+)\))?$/);
     if (match) return `处理操作链${match[1] ? `（${match[1]} 项）` : ''}`;
     match = key.match(/^Batch Outputs\s*\((\d+)\)$/);
     if (match) return `批量输出（${match[1]}）`;
     match = key.match(/^Load failed:\s*(.*)$/);
-    if (match) return `载入失败：${match[1]}`;
-    return source;
+    if (match) return `载入失败：${localizeDetail(match[1])}`;
+    match = key.match(/^Load error:\s*(.*)$/);
+    if (match) return `载入错误：${localizeDetail(match[1])}`;
+    match = key.match(/^Error:\s*(.*)$/);
+    if (match) return `错误：${localizeDetail(match[1])}`;
+    match = key.match(/^Error processing (.+?):\s*(.*)$/);
+    if (match) return `处理文件 ${match[1]} 时出错：${localizeDetail(match[2])}`;
+    match = key.match(/^Error (creating ZIP|extracting audio|confirming transcript):\s*(.*)$/);
+    if (match) return `错误${({ 'creating ZIP': '创建 ZIP', 'extracting audio': '提取音频', 'confirming transcript': '确认字幕' })[match[1]]}：${localizeDetail(match[2])}`;
+    match = key.match(/^Auto-Caption error:\s*(.*)$/);
+    if (match) return `自动字幕错误：${localizeDetail(match[1])}`;
+    match = key.match(/^Hand-off:\s*(.*)$/);
+    if (match) return `任务交接：${localizeDetail(match[1])}`;
+    match = key.match(/^Warning: Could not delete (.+?):\s*(.*)$/);
+    if (match) return `警告：无法删除 ${match[1]}：${localizeDetail(match[2])}`;
+    match = key.match(/^File loaded: (.+) \((.+)\)$/);
+    if (match) return `已载入文件：${match[1]}（${match[2]}）`;
+    match = key.match(/^Graceful fallback: Added "(.+)" to batch queue\. You can add more files\.$/);
+    if (match) return `已将“${match[1]}”加入批量队列。你还可以继续添加文件。`;
+    match = key.match(/^Added (\d+) file\(s\) to batch queue\.$/);
+    if (match) return `已将 ${match[1]} 个文件加入批量队列。`;
+    match = key.match(/^Loaded first batch file for stack building: "(.+)"$/);
+    if (match) return `已载入第一个批量文件，用于构建操作链：“${match[1]}”`;
+    match = key.match(/^(\d+) files completed\. Download each file individually using the download button\.$/);
+    if (match) return `已完成 ${match[1]} 个文件，请使用下载按钮逐个下载。`;
+    match = key.match(/^⚠ “(.+)” is not supported in batch mode\. It requires per-file configuration or is a multi-input operation\.$/);
+    if (match) return `⚠ “${localize(match[1])}”不支持批量模式；该操作需要逐文件设置或需要多个输入文件。`;
+    match = key.match(/^Parsed (\d+) subtitle cues$/);
+    if (match) return `已解析 ${match[1]} 条字幕`;
+    match = key.match(/^Transcription complete: (\d+) segments$/);
+    if (match) return `转录完成：${match[1]} 个片段`;
+    match = key.match(/^Starting Auto-Caption with (.+) model…$/);
+    if (match) return `正在使用 ${match[1]} 模型生成字幕…`;
+    match = key.match(/^Stage (\d+)\/3: (.+?)[…\.]*$/);
+    if (match) {
+      const stages = { 'Extracting audio': '正在提取音频', 'Transcribing with Whisper': '正在使用 Whisper 转录', 'Ready for review': '已就绪，等待检查' };
+      return `阶段 ${match[1]}/3：${stages[match[2]] || localizeDetail(match[2])}…`;
+    }
+    match = key.match(/^Starting batch processing of (\d+) file\(s\)…$/);
+    if (match) return `开始批量处理 ${match[1]} 个文件…`;
+    match = key.match(/^Batch complete: (\d+) succeeded, (\d+) failed\.$/);
+    if (match) return `批量处理完成：成功 ${match[1]} 个，失败 ${match[2]} 个。`;
+    match = key.match(/^Batch stack complete: (\d+) succeeded, (\d+) failed\.$/);
+    if (match) return `批量操作链处理完成：成功 ${match[1]} 个，失败 ${match[2]} 个。`;
+    match = key.match(/^Starting batch stack \((\d+) ops?\) on (\d+) files?…$/);
+    if (match) return `正在对 ${match[2]} 个文件执行包含 ${match[1]} 项操作的批量操作链…`;
+    match = key.match(/^Starting batch stack \((\d+) ops?\) on (\d+) file\(s\)…$/);
+    if (match) return `正在对 ${match[2]} 个文件执行包含 ${match[1]} 项操作的批量操作链…`;
+    match = key.match(/^\[(\d+)\/(\d+)\] Processing: (.+)$/);
+    if (match) return `[${match[1]}/${match[2]}] 正在处理：${match[3]}`;
+    match = key.match(/^Writing (.+)…$/);
+    if (match) return `正在写入 ${match[1]}…`;
+    match = key.match(/^Processing (.+)…$/);
+    if (match) return `正在处理 ${match[1]}…`;
+    match = key.match(/^Extracted ([\d.]+)s of audio \((\d+) samples @ 16 kHz\)$/);
+    if (match) return `已提取 ${match[1]} 秒音频（${match[2]} 个采样点，16 kHz）`;
+    match = key.match(/^Caption font size: (.+) \((\d+)px @ (\d+)x(\d+)\)$/);
+    if (match) return `字幕字号：${match[1]}（${match[2]} 像素，画布 ${match[3]}×${match[4]}）`;
+    match = key.match(/^Loading model… (\d+%)$/);
+    if (match) return `正在载入模型… ${match[1]}`;
+    match = key.match(/^Transcribing… (\d+%)$/);
+    if (match) return `正在转录… ${match[1]}`;
+    match = key.match(/^(.+) model \(([^)]+)\): (.+)\. Downloads and caches on first use\.$/);
+    if (match) {
+      const qualities = {
+        'Lower quality, very fast': '精度较低，速度很快',
+        'Balanced quality & speed (recommended)': '精度与速度均衡（推荐）',
+        'Higher quality, slower': '精度较高，速度较慢',
+        'Best quality, very slow': '精度最高，速度很慢',
+      };
+      return `${match[1]} 模型（${match[2]}）：${qualities[match[3]] || match[3]}。首次使用时会下载并缓存。`;
+    }
+    match = key.match(/^Download output\.([a-z0-9]+)$/i);
+    if (match) return `下载输出文件.${match[1]}`;
+    match = key.match(/^Downloaded all (\d+) files as ZIP$/);
+    if (match) return `已将全部 ${match[1]} 个文件打包下载为 ZIP`;
+    match = key.match(/^Crop adjusted for this video \((\d+)×(\d+)\): \((\d+),(\d+) (\d+)×(\d+)\) → \((\d+),(\d+) (\d+)×(\d+)\)$/);
+    if (match) return `已针对当前视频（${match[1]}×${match[2]}）调整裁剪范围：(${match[3]},${match[4]} ${match[5]}×${match[6]}) → (${match[7]},${match[8]} ${match[9]}×${match[10]})`;
+    match = key.match(/^Using input file: (.+)$/);
+    if (match) return `使用输入文件：${match[1]}`;
+    match = key.match(/^Restoring input file to ffmpeg filesystem: (.+)…$/);
+    if (match) return `正在将输入文件 ${match[1]} 恢复到 FFmpeg 文件系统…`;
+    match = key.match(/^DEBUG: Format=(.+), Burn=(.+), SRT length=(\d+)$/);
+    if (match) return `调试信息：格式=${match[1]}，烧录字幕=${match[2]}，SRT 长度=${match[3]}`;
+    match = key.match(/^“(.+)” is multi-input or whole-file and can’t be chained\. Use Single mode for it\.$/);
+    if (match) return `“${localize(match[1])}”需要多个输入文件或处理整个文件，无法加入操作链；请切换到“单项操作”模式。`;
+    match = key.match(/^Invalid #cmd — (.+)$/);
+    if (match) return `#cmd 命令无效：${localizeDetail(match[1])}`;
+    match = key.match(/^Hash command error:\s*(.*)$/);
+    if (match) return `哈希命令错误：${localizeDetail(match[1])}`;
+    match = key.match(/^Hash command rejected:\s*(.*)$/);
+    if (match) return `哈希命令已拒绝：${localizeDetail(match[1])}`;
+    match = key.match(/^Hash command: running '(.+)' (.+)…$/);
+    if (match) return `正在运行哈希命令“${match[1]}”：${match[2]}…`;
+    match = key.match(/^Hash command preloaded: (.+)$/);
+    if (match) return `已载入哈希命令：${match[1]}`;
+    match = key.match(/^Recipe loaded: (.+?)(?: — add a file to run it)?$/);
+    if (match) {
+      const parts = match[1].match(/^([\w-]+)(\s+.*)$/);
+      const command = parts ? `${operationNames[parts[1]] || parts[1]}${parts[2]}` : match[1];
+      return `已载入命令预设：${command}${key.endsWith(' — add a file to run it') ? ' — 添加文件后即可运行' : ''}`;
+    }
+    match = key.match(/^ffmpeg exited with code (\d+) — check your arguments and try again\.$/i);
+    if (match) return `FFmpeg 退出码为 ${match[1]}，请检查参数后重试。`;
+    match = key.match(/^ffmpeg exited with code (\d+)\. Check FFmpeg log above for details\.$/i);
+    if (match) return `FFmpeg 退出码为 ${match[1]}，请查看上方 FFmpeg 日志了解详情。`;
+    match = key.match(/^ffmpeg exited with code (\d+): (.+)$/i);
+    if (match) return `FFmpeg 退出码为 ${match[1]}：${localizeDetail(match[2])}`;
+    match = key.match(/^ffmpeg exited with code (\d+)$/i);
+    if (match) return `FFmpeg 退出码为 ${match[1]}`;
+    match = key.match(/^FFmpeg error:\s*(.*)$/i);
+    if (match) return `FFmpeg 错误：${localizeDetail(match[1])}`;
+    match = key.match(/^ffmpeg audio extraction failed with exit code (\d+)$/i);
+    if (match) return `FFmpeg 提取音频失败，退出码为 ${match[1]}`;
+    match = key.match(/^Subtitle file not found in ffmpeg filesystem:\s*(.*)$/i);
+    if (match) return `在 FFmpeg 文件系统中找不到字幕文件：${localizeDetail(match[1])}`;
+    match = key.match(/^Failed to load ffmpeg\.wasm:\s*(.*)$/i);
+    if (match) return `载入 ffmpeg.wasm 失败：${localizeDetail(match[1])}`;
+    match = key.match(/^Failed to write subtitle file:\s*(.*)$/i);
+    if (match) return `写入字幕文件失败：${localizeDetail(match[1])}`;
+    match = key.match(/^Failed to restore input file to ffmpeg:\s*(.*)$/i);
+    if (match) return `恢复输入文件到 FFmpeg 失败：${localizeDetail(match[1])}`;
+    match = key.match(/^Invalid WAV data: file size (\d+)$/i);
+    if (match) return `WAV 数据无效：文件大小为 ${match[1]} 字节`;
+    match = key.match(/^Invalid format: (.+)$/i);
+    if (match) return `格式无效：${match[1]}`;
+    match = key.match(/^trim\.args\.end \((.+)\) must be greater than trim\.args\.start \((.+)\)$/i);
+    if (match) return `trim.args.end（${match[1]}）必须大于 trim.args.start（${match[2]}）`;
+    match = key.match(/^unsupported op '(.+)'$/i);
+    if (match) return `不支持的操作“${match[1]}”`;
+    match = key.match(/^The job needs a file named '(.+)'\.$/);
+    if (match) return `任务需要一个名为“${match[1]}”的文件。`;
+    match = key.match(/^The job needs '(.+)' or '(.+)' to add to the video\.$/);
+    if (match) return `需要提供“${match[1]}”或“${match[2]}”，才能添加到视频中。`;
+    match = key.match(/^'(.+)' is empty\.$/);
+    if (match) return `“${match[1]}”为空。`;
+    match = key.match(/^'(.+)' must be an ArrayBuffer\.$/);
+    if (match) return `“${match[1]}”必须是 ArrayBuffer。`;
+    match = key.match(/^The files total ([\d.]+) MB; this tool takes at most ([\d.]+) MB per job because ffmpeg\.wasm works in a 2 GB in-browser memory\.$/);
+    if (match) return `文件总计 ${match[1]} MB；每个任务最多支持 ${match[2]} MB，因为 ffmpeg.wasm 在浏览器中使用约 2 GB 内存。`;
+    match = key.match(/^Timed out loading ffmpeg\.wasm\.$/i);
+    if (match) return '载入 ffmpeg.wasm 超时。';
+    match = key.match(/^ffmpeg\.wasm could not be loaded: (.+)$/i);
+    if (match) return `无法载入 ffmpeg.wasm：${localizeDetail(match[1])}`;
+    match = key.match(/^ffmpeg\.wasm stopped: (.+)$/i);
+    if (match) return `ffmpeg.wasm 已停止：${localizeDetail(match[1])}`;
+    match = key.match(/^ffmpeg subtitle embedding failed with code (\d+)\. Check FFmpeg log above for details\.$/i);
+    if (match) return `FFmpeg 嵌入字幕失败，退出码为 ${match[1]}；请查看上方 FFmpeg 日志了解详情。`;
+    match = key.match(/^Mux failed: (.+)$/i);
+    if (match) return `封装失败：${localizeDetail(match[1])}`;
+    match = key.match(/^Unknown op '(.+)'\. This tool does: (.+)\.$/);
+    if (match) return `未知操作“${match[1]}”。此工具支持：${match[2]}。`;
+    match = key.match(/^ffmpeg\.wasm could not be started \(is cdn\.jsdelivr\.net blocked\?\)\.$/i);
+    if (match) return '无法启动 ffmpeg.wasm（cdn.jsdelivr.net 是否被拦截？）';
+    match = key.match(/^The tool is already running another job\.$/i);
+    if (match) return '此工具正在处理另一个任务。';
+    match = key.match(/^unknown top-level field '(.+)'$/);
+    if (match) return `未知的顶层字段“${match[1]}”`;
+    match = key.match(/^unknown op (.+) — must be one of (.+)$/);
+    if (match) return `未知操作 ${match[1]}；可用操作为：${match[2]}`;
+    match = key.match(/^op '(.+)' requires an 'args' object$/);
+    if (match) return `操作“${match[1]}”需要一个 args 对象`;
+    match = key.match(/^unknown arg '(.+)' for op '(.+)'$/);
+    if (match) return `操作“${match[2]}”不支持参数“${match[1]}”`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) is required$/);
+    if (match) return `缺少必填参数：${match[1]}.args.${match[2]}`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) must be an integer \(got (.+)\)$/);
+    if (match) return `${match[1]}.args.${match[2]} 必须为整数（当前值：${match[3]}）`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) must be a number \(got (.+)\)$/);
+    if (match) return `${match[1]}.args.${match[2]} 必须为数字（当前值：${match[3]}）`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) must be one of (.+) \(got (.+)\)$/);
+    if (match) return `${match[1]}.args.${match[2]} 必须为以下值之一：${match[3]}（当前值：${match[4]}）`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) (.+) out of range \((min|max) (.+)\)$/);
+    if (match) return `${match[1]}.args.${match[2]} 的值 ${match[3]} 超出范围（${match[4] === 'min' ? '最小值' : '最大值'}：${match[5]}）`;
+    match = key.match(/^'run' must be a boolean$/);
+    if (match) return '“run”必须是布尔值';
+    match = key.match(/^command must be a JSON object$/);
+    if (match) return '命令必须是 JSON 对象';
+    match = key.match(/^malformed JSON in #cmd — (.+)$/);
+    if (match) return `#cmd 中的 JSON 格式错误：${localizeDetail(match[1])}`;
+    match = key.match(/^failed to fetch$/i);
+    if (match) return '网络请求失败，请检查网络连接。';
+    match = key.match(/^Warning: Could not preload ffmpeg\. It will attempt to load when you click Confirm & Embed\.$/);
+    if (match) return '警告：无法预载 FFmpeg；点击“确认并嵌入”时会再次尝试载入。';
+    const diagnostic = localizeDetail(key);
+    return diagnostic !== key ? diagnostic : source;
+  }
+
+  function localizeDetail(detail) {
+    const key = detail.trim();
+    const common = {
+      'Failed to fetch': '网络请求失败，请检查网络连接。',
+      'ffmpeg not loaded': 'FFmpeg 尚未载入',
+      'NetworkError when attempting to fetch resource.': '网络请求失败，请检查网络连接。',
+      'The operation was aborted.': '操作已中止。',
+      'The request timed out.': '请求超时。',
+      'The user aborted a request.': '用户已取消请求。',
+      'Timed out loading ffmpeg.wasm.': '载入 ffmpeg.wasm 超时。',
+      'ffmpeg produced no usable output.': 'FFmpeg 未生成可用的输出文件。',
+      'Cancelled.': '已取消。',
+      'Invalid argument': '参数无效',
+      'No such file or directory': '找不到文件或目录',
+      'Permission denied': '权限不足',
+      'Conversion failed!': '转换失败！',
+      'Out of memory': '内存不足',
+    };
+    if (common[key]) return common[key];
+    let match = key.match(/^ffmpeg exited with code (\d+) — check your arguments and try again\.$/i);
+    if (match) return `FFmpeg 退出码为 ${match[1]}，请检查参数后重试。`;
+    match = key.match(/^ffmpeg exited with code (\d+)\. Check FFmpeg log above for details\.$/i);
+    if (match) return `FFmpeg 退出码为 ${match[1]}，请查看上方 FFmpeg 日志了解详情。`;
+    match = key.match(/^ffmpeg exited with code (\d+)(?::\s*(.*))?$/i);
+    if (match) return `FFmpeg 退出码为 ${match[1]}${match[2] ? `：${localizeDiagnosticText(match[2])}` : ''}`;
+    let prefix = key.match(/^createFFmpegCore not found in\s+(.+)$/i);
+    if (prefix) return `未在以下地址找到 createFFmpegCore：${prefix[1]}`;
+    prefix = key.match(/^(WASM fetch failed|FFmpeg resource fetch failed|Unknown message type|Failed to fetch extracted frame for JPEG conversion):\s*(.*)$/i);
+    if (prefix) {
+      const names = {
+        'WASM fetch failed': 'WASM 获取失败', 'FFmpeg resource fetch failed': 'FFmpeg 资源获取失败',
+        'Unknown message type': '未知消息类型',
+        'Failed to fetch extracted frame for JPEG conversion': '获取提取的画面以转换为 JPEG 失败',
+      };
+      return `${names[prefix[1]] || prefix[1]}：${prefix[2]}`;
+    }
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) is required$/);
+    if (match) return `缺少必填参数：${match[1]}.args.${match[2]}`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) must be an integer \(got (.+)\)$/);
+    if (match) return `${match[1]}.args.${match[2]} 必须为整数（当前值：${match[3]}）`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) must be a number \(got (.+)\)$/);
+    if (match) return `${match[1]}.args.${match[2]} 必须为数字（当前值：${match[3]}）`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) must be one of (.+) \(got (.+)\)$/);
+    if (match) return `${match[1]}.args.${match[2]} 必须为以下值之一：${match[3]}（当前值：${match[4]}）`;
+    match = key.match(/^([\w.-]+)\.args\.([\w.-]+) (.+) out of range \((min|max) (.+)\)$/);
+    if (match) return `${match[1]}.args.${match[2]} 的值 ${match[3]} 超出范围（${match[4] === 'min' ? '最小值' : '最大值'}：${match[5]}）`;
+    match = key.match(/^unknown top-level field '(.+)'$/);
+    if (match) return `未知的顶层字段“${match[1]}”`;
+    match = key.match(/^unknown op (.+) — must be one of (.+)$/);
+    if (match) return `未知操作 ${match[1]}；可用操作为：${match[2]}`;
+    match = key.match(/^op '(.+)' requires an 'args' object$/);
+    if (match) return `操作“${match[1]}”需要一个 args 对象`;
+    match = key.match(/^unknown arg '(.+)' for op '(.+)'$/);
+    if (match) return `操作“${match[2]}”不支持参数“${match[1]}”`;
+    match = key.match(/^'run' must be a boolean$/);
+    if (match) return '“run”必须是布尔值';
+    match = key.match(/^command must be a JSON object$/);
+    if (match) return '命令必须是 JSON 对象';
+    match = key.match(/^trim\.args\.end \((.+)\) must be greater than trim\.args\.start \((.+)\)$/i);
+    if (match) return `trim.args.end（${match[1]}）必须大于 trim.args.start（${match[2]}）`;
+    match = key.match(/^unsupported op '(.+)'$/i);
+    if (match) return `不支持的操作“${match[1]}”`;
+    match = key.match(/^Invalid data found when processing input$/i);
+    if (match) return '处理输入文件时发现无效数据';
+    match = key.match(/^Error opening (input|output) file:?\s*(.*)$/i);
+    if (match) return `打开${match[1] === 'input' ? '输入' : '输出'}文件时出错：${match[2]}`;
+    return localizeDiagnosticText(detail);
+  }
+
+  function localizeDiagnosticText(detail) {
+    return detail
+      .replace(/No such file or directory/gi, '找不到文件或目录')
+      .replace(/Invalid data found when processing input/gi, '处理输入文件时发现无效数据')
+      .replace(/Error opening input file/gi, '打开输入文件时出错')
+      .replace(/Error opening output file/gi, '打开输出文件时出错')
+      .replace(/Invalid argument/gi, '参数无效')
+      .replace(/Permission denied/gi, '权限不足')
+      .replace(/Conversion failed!/gi, '转换失败！')
+      .replace(/Out of memory/gi, '内存不足')
+      .replace(/memory access out of bounds/gi, '内存访问越界')
+      .replace(/Failed to fetch/gi, '网络请求失败')
+      .replace(/could not download the Whisper model/gi, '无法下载 Whisper 模型')
+      .replace(/Check your network connection and try again/gi, '请检查网络连接后重试');
   }
 
   function renderTextNode(node) {
@@ -202,7 +625,7 @@
     if (['SCRIPT', 'STYLE', 'TEXTAREA'].includes(element.tagName)) return;
     const sourceMap = attrSources.get(element) || new Map();
     const renderedMap = attrRendered.get(element) || new Map();
-    for (const name of ['placeholder', 'title', 'aria-label']) {
+    for (const name of ['placeholder', 'title', 'aria-label', 'alt']) {
       if (!element.hasAttribute(name)) continue;
       const current = element.getAttribute(name);
       let source = sourceMap.get(name);
@@ -250,6 +673,9 @@
     if (description) description.content = language === 'zh-CN'
       ? '基于 ffmpeg.wasm 的本地视频编辑器。所有处理均在浏览器中完成，文件不会上传。'
       : 'A browser-based video editor powered by ffmpeg.wasm. All processing happens locally in your browser.';
+    const manifest = document.querySelector('link[rel="manifest"]');
+    const manifestPath = language === 'zh-CN' ? './manifest.zh-CN.json' : './manifest.json';
+    if (manifest && !manifest.href.endsWith(manifestPath.slice(2))) manifest.href = manifestPath;
     const languageSelect = document.getElementById('languageSelect');
     const themeSelect = document.getElementById('themeSelect');
     if (languageSelect) languageSelect.value = languageMode;
@@ -301,7 +727,7 @@
         else record.addedNodes.forEach(node => translateTree(node));
       }
     });
-    observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['placeholder', 'title', 'aria-label'] });
+    observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['placeholder', 'title', 'aria-label', 'alt'] });
   }
 
   window.ffmpegWebCliI18n = { localize, applyPreferences, operationNames };
