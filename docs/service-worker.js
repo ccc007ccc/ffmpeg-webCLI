@@ -115,13 +115,17 @@ self.addEventListener('fetch', (event) => {
   // Handle local app resources (network-first, fallback to cache)
   if (url.origin === self.location.origin) {
     const isolateDocument = request.mode === 'navigate' && url.searchParams.get(THREAD_MODE_PARAM) === 'multi';
+    // Dedicated worker responses inherit the creator's isolation requirement;
+    // they must return a compatible COEP header too or Chrome blocks worker.js.
+    const isolateWorker = request.destination === 'worker' || request.destination === 'sharedworker';
     const addIsolationHeaders = (response) => {
-      if (!isolateDocument || !response || response.type === 'opaque') return response;
+      if ((!isolateDocument && !isolateWorker) || !response || response.type === 'opaque') return response;
       const headers = new Headers(response.headers);
-      headers.set('Cross-Origin-Opener-Policy', 'same-origin');
       // credentialless allows the app's cross-origin CDN assets to load while
-      // still enabling SharedArrayBuffer for the opt-in multi-thread core.
+      // still enabling SharedArrayBuffer for the opt-in multi-thread core. This
+      // is also required on the same-origin worker script response.
       headers.set('Cross-Origin-Embedder-Policy', 'credentialless');
+      if (isolateDocument) headers.set('Cross-Origin-Opener-Policy', 'same-origin');
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
