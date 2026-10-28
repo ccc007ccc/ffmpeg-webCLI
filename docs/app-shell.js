@@ -149,6 +149,7 @@
     'Multi-thread FFmpeg loaded and ready': '多线程 FFmpeg 已载入并就绪',
     'Stroke follows each glyph contour, including enclosed spaces. For Chinese text, keep it thin (1–2 px).': '描边会沿每个字形的内外轮廓绘制，包括字腔内侧；中文建议使用较细描边（1–2 像素）。',
     'Enable faster core': '启用多线程', 'Reloads the page to download the multi-thread core': '将重新载入页面并下载多线程核心。',
+    'Remove the selected video and clear the batch queue before switching cores; reloading clears them.': '切换核心前请先移除已选视频并清空批量队列；页面重载会清除这些文件。',
     'ffmpeg loaded.': 'FFmpeg 已载入。', 'Done!': '处理完成！', 'Loaded': '已载入',
     'Batch mode enabled. Drop multiple files to queue them.': '已启用批量模式，可拖入多个文件加入队列。',
     'Batch mode disabled. Single file mode active.': '已关闭批量模式，当前为单文件模式。',

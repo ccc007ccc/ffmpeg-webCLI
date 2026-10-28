@@ -3958,6 +3958,10 @@ async function prepareMultiThreadMode() {
 }
 
 function enableMultiThreadCore() {
+  if (inputFile || batchQueue.length) {
+    addLog('Remove the selected video and clear the batch queue before switching cores; reloading clears them.', 'warn');
+    return;
+  }
   const multiThreadURL = new URL(location.href);
   multiThreadURL.searchParams.set('ffmpeg-threads', 'multi');
   multiThreadURL.searchParams.set('ffmpeg-force-mt', '1');
