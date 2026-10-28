@@ -458,7 +458,7 @@ async function performFFmpegLoad() {
   const dot  = document.getElementById('statusDot');
   const txt  = document.getElementById('statusText');
   dot.className = 'dot loading';
-  txt.textContent = 'Preparing ffmpeg…';
+  txt.textContent = ffmpegUseMultiThread ? 'Preparing multi-thread FFmpeg…' : 'Preparing single-thread FFmpeg…';
   btn.disabled = true;
 
   ffmpeg.on('log', ({ message }) => addLog(message));
@@ -504,9 +504,7 @@ async function performFFmpegLoad() {
     await ffmpeg.load(ffmpegLoadConfig(classWorkerURL));
 
     dot.className = 'dot loaded';
-    txt.textContent = (await ffmpegCoreFilesCached(coreURL, wasmURL, workerURL))
-      ? (ffmpegUseMultiThread ? 'Multi-thread FFmpeg ready (core files cached)' : 'FFmpeg ready (core files cached for next time)')
-      : (ffmpegUseMultiThread ? 'Multi-thread FFmpeg loaded and ready' : 'ffmpeg loaded and ready');
+    txt.textContent = ffmpegUseMultiThread ? 'Multi-thread FFmpeg ready' : 'Single-thread FFmpeg ready';
     btn.innerHTML = '<i class="fas fa-check"></i> Loaded';
     btn.className = 'btn btn-success ml-auto';
     btn.disabled = true;
