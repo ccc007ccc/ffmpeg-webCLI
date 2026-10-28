@@ -202,10 +202,10 @@ textarea { resize: vertical; }
   margin-inline: auto;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: 11px;
   background: linear-gradient(145deg, #223c55, #387567 47%, #d4a56f);
-  box-shadow: inset 0 0 32px rgb(0 0 0 / 20%);
+  box-shadow: inset 0 0 0 1px var(--border), inset 0 0 32px rgb(0 0 0 / 20%);
 }
 .watermark-preview::before, .watermark-preview::after { position: absolute; content: ""; pointer-events: none; }
 .watermark-preview::before { inset: 42% -5% -35%; transform: rotate(-9deg); background: linear-gradient(165deg, #27384a 0 47%, #182330 48%); }
@@ -227,6 +227,7 @@ textarea { resize: vertical; }
   line-height: 1.05;
   text-shadow: var(--watermark-shadow-offset, 2px) var(--watermark-shadow-offset, 2px) var(--watermark-shadow-blur, 0px) var(--watermark-shadow-color, rgb(0 0 0 / 35%));
   -webkit-text-stroke: var(--watermark-outline, 0px) var(--watermark-outline-color, #000);
+  paint-order: stroke fill;
   font-family: var(--watermark-font-family, system-ui, sans-serif);
   white-space: nowrap;
 }

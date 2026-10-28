@@ -911,9 +911,12 @@ function watermarkFilterOptions() {
   const background = Math.max(0, Math.min(90, parseInt(read('watermarkBgOpacity'), 10) || 0)) / 100;
   const shadow = Math.max(0, Math.min(100, parseInt(read('watermarkShadow'), 10) || 0)) / 100;
   const outlineControl = document.getElementById('watermarkOutline');
-  const maxOutline = Math.max(0.5, Math.min(4, Math.floor(size * 0.08 * 10) / 10));
+  // FFmpeg drawtext's borderw is an integer radius in source-video pixels.
+  // Keep the control integral so the preview and exported filter use the same
+  // value instead of asking FFmpeg to parse a fractional border width.
+  const maxOutline = Math.max(1, Math.min(4, Math.floor(size * 0.08)));
   outlineControl.max = String(maxOutline);
-  const rawOutline = Math.max(0, parseFloat(outlineControl.value) || 0);
+  const rawOutline = Math.max(0, parseInt(outlineControl.value, 10) || 0);
   const outline = Math.min(maxOutline, rawOutline);
   if (rawOutline > maxOutline) outlineControl.value = String(maxOutline);
   const toHex = value => /^#[0-9a-f]{6}$/i.test(value) ? value.slice(1).toUpperCase() : '000000';
@@ -1029,19 +1032,20 @@ function updateWatermarkPreview(event) {
   const video = document.getElementById('inputVideo');
   const videoWidth = video.videoWidth || 1920;
   const videoHeight = video.videoHeight || 1080;
-  const ratio = videoWidth / videoHeight;
   const shellWidth = preview.parentElement.clientWidth || 640;
   const maxHeight = window.matchMedia('(max-width: 680px)').matches ? 240 : 320;
-  const frameWidth = Math.min(shellWidth, maxHeight * ratio);
-  const frameHeight = frameWidth / ratio;
+  const previewScale = Math.min(shellWidth / videoWidth, maxHeight / videoHeight);
+  const frameWidth = videoWidth * previewScale;
+  const frameHeight = videoHeight * previewScale;
   preview.style.width = `${frameWidth}px`;
   preview.style.height = `${frameHeight}px`;
   preview.style.aspectRatio = `${videoWidth} / ${videoHeight}`;
   previewText.textContent = text;
   preview.dataset.motion = state.motion;
 
-  const contentWidth = preview.clientWidth || frameWidth;
-  const contentHeight = preview.clientHeight || frameHeight;
+  const previewRect = preview.getBoundingClientRect();
+  const contentWidth = previewRect.width || frameWidth;
+  const contentHeight = previewRect.height || frameHeight;
   const scaleX = contentWidth / videoWidth;
   const scaleY = contentHeight / videoHeight;
   const fontSize = state.size * scaleY;
@@ -1056,7 +1060,10 @@ function updateWatermarkPreview(event) {
   preview.style.setProperty('--watermark-shadow-color', watermarkPreviewRGB(state.shadowColor, state.shadow));
   preview.style.setProperty('--watermark-shadow-offset', `${2 * scaleX}px`);
   preview.style.setProperty('--watermark-shadow-blur', '0px');
-  preview.style.setProperty('--watermark-outline', `${state.outline * scaleX}px`);
+  // drawtext borderw is a FreeType stroke radius; CSS text-stroke is specified
+  // as the full centered stroke width. Doubling it makes the visible outside
+  // and counter outline match the exported border at preview scale.
+  preview.style.setProperty('--watermark-outline', `${2 * state.outline * scaleX}px`);
   preview.style.setProperty('--watermark-outline-color', `#${state.outlineColor}`);
   const fontFamily = selectedWatermarkFontPreset === 'noto-serif-sc'
     ? '"Watermark Noto Serif SC", serif'
@@ -1090,7 +1097,7 @@ function updateWatermarkPreview(event) {
     watermarkYVal: state.yPct,
     watermarkBgOpacityVal: Math.round(state.background * 100),
     watermarkShadowVal: Math.round(state.shadow * 100),
-    watermarkOutlineVal: Number(state.outline.toFixed(1)),
+    watermarkOutlineVal: state.outline,
   })) document.getElementById(id).textContent = value;
 
   document.getElementById('watermarkStaticControls').classList.toggle('hidden', state.motion !== 'static');
