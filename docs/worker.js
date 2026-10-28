@@ -41,6 +41,7 @@ const T = {
 };
 
 let ffmpeg = null;
+let ffmpegThreadWorkerBlobURL = null;
 
 const CDN_CACHE_NAME = 'ffmpeg-editor-cdn-v6';
 
@@ -69,7 +70,7 @@ async function fetchPersisted(url) {
   return response;
 }
 
-async function load({ coreURL, wasmURL }) {
+async function load({ coreURL, wasmURL, workerURL }) {
   const first = !ffmpeg;
 
   // Explicitly populate the same cache checked by the page on its next visit.
@@ -85,6 +86,18 @@ async function load({ coreURL, wasmURL }) {
   const createFFmpegCore = mod.default;
   if (!createFFmpegCore) throw new Error('createFFmpegCore not found in ' + coreURL);
 
+  // The multithread core starts pthread workers from inside the WASM module.
+  // Classic workers must be same-origin, so serve its cached CDN script as a
+  // blob URL and pass the resolved URL through Emscripten's worker metadata.
+  let coreWorkerURL = workerURL;
+  if (workerURL) {
+    const workerResponse = await fetchPersisted(workerURL);
+    const workerSource = await workerResponse.text();
+    if (ffmpegThreadWorkerBlobURL) URL.revokeObjectURL(ffmpegThreadWorkerBlobURL);
+    ffmpegThreadWorkerBlobURL = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
+    coreWorkerURL = ffmpegThreadWorkerBlobURL;
+  }
+
   // Pre-fetch the WASM binary as an ArrayBuffer.
   // Passing it via Module.wasmBinary makes Emscripten skip all internal URL
   // fetches and blob-URL creation and call WebAssembly.instantiate(binary)
@@ -98,15 +111,23 @@ async function load({ coreURL, wasmURL }) {
   // Emscripten somehow falls through to instantiateAsync, our callback
   // intercepts and calls WebAssembly.instantiate with the pre-fetched binary
   // directly — zero network requests, zero blob URLs.
-  ffmpeg = await createFFmpegCore({
-    wasmBinary,
-    instantiateWasm(info, receiveInstance) {
+  const coreOptions = { wasmBinary };
+  if (coreWorkerURL) {
+    // ffmpeg.wasm's multithread core reads these URLs from the main script
+    // fragment when it creates its internal worker pool.
+    const workerMetadata = btoa(JSON.stringify({ wasmURL, workerURL: coreWorkerURL }));
+    coreOptions.mainScriptUrlOrBlob = `${coreURL}#${workerMetadata}`;
+  } else {
+    // The single-thread core has no pthread worker pool. Keep the direct
+    // instantiate path that avoids internal fetches and blob URL range errors.
+    coreOptions.instantiateWasm = (info, receiveInstance) => {
       WebAssembly.instantiate(new Uint8Array(wasmBinary), info)
         .then(({ instance, module }) => receiveInstance(instance, module))
         .catch(err => console.error('[worker] instantiateWasm error:', err));
       return {}; // must return {} to signal async completion
-    },
-  });
+    };
+  }
+  ffmpeg = await createFFmpegCore(coreOptions);
 
   ffmpeg.setLogger(data => self.postMessage({ type: T.LOG, data }));
   ffmpeg.setProgress(data => self.postMessage({ type: T.PROGRESS, data }));

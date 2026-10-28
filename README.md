@@ -408,7 +408,7 @@ cd ffmpeg-webCLI
 node server.js          # serves docs/ at http://127.0.0.1:5500 (or: node server.js 8080)
 ```
 
-The single-thread core in use (`@ffmpeg/core@0.12.10`) does not need `SharedArrayBuffer`, so the server sends no cross-origin isolation headers. `FFMPEG_ISOLATION=1 node server.js` sends `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` for experiments with a multi-thread core; note that COOP cuts the popup's link to its opener, so the hand-off below cannot work with it on.
+Standalone pages use the multi-thread core (`@ffmpeg/core-mt@0.12.10`) when the browser supports cross-origin isolation. The service worker adds COOP and COEP headers only to that standalone mode; popup hand-off pages keep the single-thread core because COOP disconnects `window.opener`. Browsers that cannot enable `SharedArrayBuffer` fall back to the single-thread core. Existing installs reuse a cached single-thread core immediately and can switch to the faster core from the status bar; after that one-time download, refreshes reuse it automatically. On local servers, `FFMPEG_ISOLATION=1 node server.js` can also add isolation headers for manual experiments.
 
 Or serve the `docs/` folder with any static server:
 

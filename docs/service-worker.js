@@ -11,6 +11,7 @@
 const CACHE_NAME = 'ffmpeg-editor-v6';
 const RUNTIME_CACHE = 'ffmpeg-editor-runtime-v6';
 const CDN_CACHE = 'ffmpeg-editor-cdn-v6';
+const THREAD_MODE_PARAM = 'ffmpeg-threads';
 // Resolve files from this deployment directory so both custom domains and
 // GitHub Pages project URLs such as /owner/repository/ work correctly.
 const APP_BASE_URL = new URL('./', self.location.href);
@@ -113,10 +114,24 @@ self.addEventListener('fetch', (event) => {
 
   // Handle local app resources (network-first, fallback to cache)
   if (url.origin === self.location.origin) {
+    const isolateDocument = request.mode === 'navigate' && url.searchParams.get(THREAD_MODE_PARAM) === 'multi';
+    const addIsolationHeaders = (response) => {
+      if (!isolateDocument || !response || response.type === 'opaque') return response;
+      const headers = new Headers(response.headers);
+      headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+      // credentialless allows the app's cross-origin CDN assets to load while
+      // still enabling SharedArrayBuffer for the opt-in multi-thread core.
+      headers.set('Cross-Origin-Embedder-Policy', 'credentialless');
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    };
     event.respondWith(
       (async () => {
         try {
-          const response = await fetch(request);
+          const response = addIsolationHeaders(await fetch(request));
           // Only cache successful responses
           if (response && response.status === 200) {
             const cache = request.url.includes('.js') || 
@@ -136,7 +151,7 @@ self.addEventListener('fetch', (event) => {
           const response = await caches.match(request);
           if (response) {
             console.log('[SW] Served from cache:', request.url);
-            return response;
+            return addIsolationHeaders(response);
           }
               
           // For JS files, return empty module to prevent import errors offline

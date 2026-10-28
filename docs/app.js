@@ -26,7 +26,17 @@ let watermarkPreviewLayout = null;
 const WATERMARK_TEXT_FILE = 'watermark-text.txt';
 const WATERMARK_FONT_FILE = 'watermark-font.ttf';
 const FFMPEG_CDN_CACHE = 'ffmpeg-editor-cdn-v6';
+const FFMPEG_CORE_SINGLE_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
+const FFMPEG_CORE_MULTI_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm';
+const FFMPEG_MULTI_THREAD = Boolean(
+  window.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined' &&
+  new URLSearchParams(location.search).get('ffmpeg-threads') === 'multi'
+);
+const FFMPEG_FORCE_MULTI_THREAD = new URLSearchParams(location.search).get('ffmpeg-force-mt') === '1';
+let ffmpegUseMultiThread = FFMPEG_MULTI_THREAD;
+const FFMPEG_THREAD_MODE_GUARD = 'ffmpeg-webcli-mt-attempted';
 let ffmpegLoadPromise = null;
+let ffmpegThreadWorkerBlobURL = null;
 let currentObjectURL = null;  // object URL backing the input <video> preview
 let vidDur    = 0;
 let currentOp    = 'convert';
@@ -374,25 +384,61 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ── Load ffmpeg ───────────────────────────────────────
-async function ffmpegCoreFilesCached(coreURL, wasmURL) {
+function ffmpegCoreURLs() {
+  const base = ffmpegUseMultiThread ? FFMPEG_CORE_MULTI_BASE : FFMPEG_CORE_SINGLE_BASE;
+  return {
+    coreURL: `${base}/ffmpeg-core.js`,
+    wasmURL: `${base}/ffmpeg-core.wasm`,
+    workerURL: ffmpegUseMultiThread ? `${base}/ffmpeg-core.worker.js` : null,
+  };
+}
+
+function ffmpegLoadConfig(classWorkerURL) {
+  const urls = ffmpegCoreURLs();
+  return {
+    classWorkerURL,
+    coreURL: urls.coreURL,
+    wasmURL: urls.wasmURL,
+    ...(urls.workerURL ? { workerURL: urls.workerURL } : {}),
+  };
+}
+
+async function ffmpegCoreFilesCached(coreURL, wasmURL, workerURL = null) {
   if (!('caches' in window)) return false;
   try {
     const cache = await caches.open(FFMPEG_CDN_CACHE);
-    const [core, wasm] = await Promise.all([
+    const matches = await Promise.all([
       cache.match(coreURL, { ignoreVary: true }),
       cache.match(wasmURL, { ignoreVary: true }),
+      ...(workerURL ? [cache.match(workerURL, { ignoreVary: true })] : []),
     ]);
-    return Boolean(core && wasm);
+    return matches.every(Boolean);
   } catch (_) {
     return false;
   }
 }
 
 async function updateFFmpegCacheHint(autoStart = false) {
-  const esmBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
-  const coreURL = `${esmBase}/ffmpeg-core.js`;
-  const wasmURL = `${esmBase}/ffmpeg-core.wasm`;
-  if (isLoaded() || !(await ffmpegCoreFilesCached(coreURL, wasmURL))) return;
+  if (isLoaded()) return;
+  let { coreURL, wasmURL, workerURL } = ffmpegCoreURLs();
+  let cached = await ffmpegCoreFilesCached(coreURL, wasmURL, workerURL);
+  if (!cached && ffmpegUseMultiThread && !FFMPEG_FORCE_MULTI_THREAD) {
+    const singleCoreURL = `${FFMPEG_CORE_SINGLE_BASE}/ffmpeg-core.js`;
+    const singleWasmURL = `${FFMPEG_CORE_SINGLE_BASE}/ffmpeg-core.wasm`;
+    if (await ffmpegCoreFilesCached(singleCoreURL, singleWasmURL)) {
+      // Existing installs already have the old core cached. Reuse it immediately
+      // so the threaded-core rollout does not force a second large download.
+      ffmpegUseMultiThread = false;
+      ({ coreURL, wasmURL, workerURL } = ffmpegCoreURLs());
+      cached = true;
+      document.getElementById('multiThreadUpgradeBtn')?.classList.remove('hidden');
+      addLog('The multi-thread core is not cached yet; starting the cached single-thread core.', 'ok');
+    }
+  }
+  if (!cached) {
+    if (autoStart && FFMPEG_FORCE_MULTI_THREAD) return loadFFmpeg();
+    return;
+  }
   if (autoStart) return loadFFmpeg();
   document.getElementById('statusText').textContent = 'FFmpeg is not running; cached files are reused when available';
   document.getElementById('loadBtn').innerHTML = '<i class="fas fa-play"></i> Start cached FFmpeg';
@@ -422,15 +468,12 @@ async function performFFmpegLoad() {
     document.getElementById('progPct').textContent = pct + '%';
   });
 
-  const esmBase  = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/';
   // dist/esm is required: the worker loads the core via dynamic import() which
   // needs a real ES module (export default). The dist/umd build has no exports,
   // so import() returns an empty namespace and module.default is undefined.
-  const coreBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
   try {
-    const coreURL = `${coreBase}/ffmpeg-core.js`;
-    const wasmURL = `${coreBase}/ffmpeg-core.wasm`;
-    const cached = await ffmpegCoreFilesCached(coreURL, wasmURL);
+    const { coreURL, wasmURL, workerURL } = ffmpegCoreURLs();
+    const cached = await ffmpegCoreFilesCached(coreURL, wasmURL, workerURL);
     txt.textContent = cached ? 'Initializing ffmpeg from browser cache…' : 'Downloading ffmpeg-core (~31 MB)…';
     btn.innerHTML = cached
       ? '<i class="fas fa-spinner fa-spin"></i> Starting cached FFmpeg…'
@@ -458,15 +501,20 @@ async function performFFmpegLoad() {
     addLog('Using direct CDN URL for ffmpeg-core.wasm.', 'ok');
 
     if (!cached) txt.textContent = 'Initialising ffmpeg (downloading WASM ~31 MB)…';
-    await ffmpeg.load({ classWorkerURL, coreURL, wasmURL });
+    await ffmpeg.load(ffmpegLoadConfig(classWorkerURL));
 
     dot.className = 'dot loaded';
-    txt.textContent = (await ffmpegCoreFilesCached(coreURL, wasmURL))
-      ? 'FFmpeg ready (core files cached for next time)'
-      : 'ffmpeg loaded and ready';
+    txt.textContent = (await ffmpegCoreFilesCached(coreURL, wasmURL, workerURL))
+      ? (ffmpegUseMultiThread ? 'Multi-thread FFmpeg ready (core files cached)' : 'FFmpeg ready (core files cached for next time)')
+      : (ffmpegUseMultiThread ? 'Multi-thread FFmpeg loaded and ready' : 'ffmpeg loaded and ready');
     btn.innerHTML = '<i class="fas fa-check"></i> Loaded';
     btn.className = 'btn btn-success ml-auto';
     btn.disabled = true;
+    if (FFMPEG_FORCE_MULTI_THREAD) {
+      const cleanURL = new URL(location.href);
+      cleanURL.searchParams.delete('ffmpeg-force-mt');
+      history.replaceState(history.state, '', cleanURL);
+    }
     addLog('ffmpeg loaded.', 'ok');
     syncProcessBtn();
   } catch (err) {
@@ -477,6 +525,9 @@ async function performFFmpegLoad() {
     btn.className = 'btn btn-primary ml-auto';
     btn.innerHTML = '<i class="fas fa-download"></i> Load FFmpeg (cached after first load)';
     btn.disabled = false;
+    if (FFMPEG_MULTI_THREAD && !ffmpegUseMultiThread) {
+      document.getElementById('multiThreadUpgradeBtn')?.classList.remove('hidden');
+    }
     addLog('Load error: ' + msg, 'err');
   }
 }
@@ -861,7 +912,12 @@ function watermarkFilterOptions() {
   const yPct = Math.max(0, Math.min(100, parseInt(read('watermarkY'), 10) || 0));
   const background = Math.max(0, Math.min(90, parseInt(read('watermarkBgOpacity'), 10) || 0)) / 100;
   const shadow = Math.max(0, Math.min(100, parseInt(read('watermarkShadow'), 10) || 0)) / 100;
-  const outline = Math.max(0, Math.min(8, parseInt(read('watermarkOutline'), 10) || 0));
+  const outlineControl = document.getElementById('watermarkOutline');
+  const maxOutline = Math.max(0.5, Math.min(4, Math.floor(size * 0.08 * 10) / 10));
+  outlineControl.max = String(maxOutline);
+  const rawOutline = Math.max(0, parseFloat(outlineControl.value) || 0);
+  const outline = Math.min(maxOutline, rawOutline);
+  if (rawOutline > maxOutline) outlineControl.value = String(maxOutline);
   const toHex = value => /^#[0-9a-f]{6}$/i.test(value) ? value.slice(1).toUpperCase() : '000000';
   const color = toHex(read('watermarkColor'));
   const shadowColor = toHex(read('watermarkShadowColor'));
@@ -902,7 +958,7 @@ function watermarkFilterOptions() {
     `shadowcolor=0x${shadowColor}@${shadow.toFixed(2)}`,
     'shadowx=2', 'shadowy=2',
   ];
-  if (outline > 0) options.push(`borderw=${outline}`, `bordercolor=0x${outlineColor}@0.85`);
+  if (outline > 0) options.push(`borderw=${outline}`, `bordercolor=0x${outlineColor}`);
   if (background > 0) options.push('box=1', `boxcolor=black@${background.toFixed(2)}`, 'boxborderw=8');
 
   return { filter: `drawtext=${options.join(':')}`, motion, size, opacity, background, shadow, outline, cycle, xPct, yPct, margin, boxPadding, color, shadowColor, outlineColor };
@@ -1036,7 +1092,7 @@ function updateWatermarkPreview(event) {
     watermarkYVal: state.yPct,
     watermarkBgOpacityVal: Math.round(state.background * 100),
     watermarkShadowVal: Math.round(state.shadow * 100),
-    watermarkOutlineVal: state.outline,
+    watermarkOutlineVal: Number(state.outline.toFixed(1)),
   })) document.getElementById(id).textContent = value;
 
   document.getElementById('watermarkStaticControls').classList.toggle('hidden', state.motion !== 'static');
@@ -3037,11 +3093,9 @@ function applyWasmVp9Safety(args, videoWidth = 0, addLogFn = null) {
   };
 
   // Safer encoder settings for browser/WASM memory limits.
-  // IMPORTANT: this ffmpeg-core is built with --disable-pthreads (single
-  // threaded). Any multithreaded libvpx encoding path (-row-mt, -tile-columns,
-  // -frame-parallel, or -threads > 1) tries to spawn encoder worker threads and
-  // crashes the wasm module with "memory access out of bounds" at frame 1.
-  // Force a fully single-threaded encode so WebM (VP9) actually works.
+  // Keep libvpx on its low-memory path. The original single-thread core crashed
+  // when VP9's worker options were enabled; the multi-thread core primarily
+  // benefits codecs such as x264, so retain this known-safe WebM configuration.
   pushPairIfMissing('-deadline', 'realtime');
   pushPairIfMissing('-cpu-used', '6');
   pushPairIfMissing('-threads', '1');
@@ -3858,6 +3912,60 @@ window.addEventListener('appinstalled', () => {
 
 // ── Service Worker Registration ─────────────────────────────────
 // Register service worker for offline support and caching
+function waitForServiceWorkerControl(timeoutMs = 4000) {
+  if (navigator.serviceWorker.controller) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let timer;
+    const finish = (controlled) => {
+      clearTimeout(timer);
+      navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+      resolve(controlled);
+    };
+    const onChange = () => finish(Boolean(navigator.serviceWorker.controller));
+    navigator.serviceWorker.addEventListener('controllerchange', onChange);
+    timer = setTimeout(() => finish(Boolean(navigator.serviceWorker.controller)), timeoutMs);
+  });
+}
+
+async function prepareMultiThreadMode() {
+  const params = new URLSearchParams(location.search);
+  const requested = params.get('ffmpeg-threads') === 'multi';
+  if (requested) {
+    if (window.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') return false;
+    try { sessionStorage.setItem(FFMPEG_THREAD_MODE_GUARD, '1'); } catch (_) {}
+    params.delete('ffmpeg-threads');
+    params.delete('ffmpeg-force-mt');
+    const fallbackURL = new URL(location.href);
+    fallbackURL.search = params.toString();
+    history.replaceState(history.state, '', fallbackURL);
+    addLog('Multi-thread mode is unavailable here; using the compatible single-thread core.', 'warn');
+    return false;
+  }
+
+  // COOP severs window.opener by design. Keep popup hand-off pages in the
+  // compatible single-thread mode, and only opt standalone top-level pages in.
+  if (window.opener || window.top !== window) return false;
+  try {
+    if (sessionStorage.getItem(FFMPEG_THREAD_MODE_GUARD) === '1') return false;
+  } catch (_) {}
+  if (!(await waitForServiceWorkerControl())) return false;
+
+  params.set('ffmpeg-threads', 'multi');
+  const multiThreadURL = new URL(location.href);
+  multiThreadURL.search = params.toString();
+  location.replace(multiThreadURL);
+  return true;
+}
+
+function enableMultiThreadCore() {
+  const multiThreadURL = new URL(location.href);
+  multiThreadURL.searchParams.set('ffmpeg-threads', 'multi');
+  multiThreadURL.searchParams.set('ffmpeg-force-mt', '1');
+  location.replace(multiThreadURL.href);
+}
+
+document.getElementById('multiThreadUpgradeBtn')?.addEventListener('click', enableMultiThreadCore);
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
@@ -3865,6 +3973,7 @@ if ('serviceWorker' in navigator) {
         scope: './',
         updateViaCache: 'none',
       });
+      if (await prepareMultiThreadMode()) return;
       await updateFFmpegCacheHint(true);
 
       // Check for updates periodically
@@ -4259,12 +4368,8 @@ async function confirmAutoCaptionTranscript() {
     if (ffmpeg && typeof ffmpeg.load === 'function') {
       try {
         addLog('Ensuring ffmpeg is fully initialized…', 'ok');
-        const esmBase  = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/';
-        const coreBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
         const classWorkerURL = new URL('./worker.js', location.href).href;
-        const coreURL = `${coreBase}/ffmpeg-core.js`;
-        const wasmURL = `${coreBase}/ffmpeg-core.wasm`;
-        await ffmpeg.load({ classWorkerURL, coreURL, wasmURL });
+        await ffmpeg.load(ffmpegLoadConfig(classWorkerURL));
       } catch (e) {
         // It's okay if load fails (likely already loaded) - proceed and try to use it
         console.warn('ffmpeg.load() call in embed:', e.message);
