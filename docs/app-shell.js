@@ -8,7 +8,7 @@
     'Processing mode': '处理模式', 'Operation category': '操作分类', 'Crop selection': '裁剪区域',
     'Process multiple files': '处理多个文件', 'Download all as ZIP': '全部打包下载',
     '100% local. Data never leaves your browser.': '100% 本地处理，文件不会离开浏览器。',
-    'Fork on GitHub': '在 GitHub 上查看', 'Input Video': '输入视频', 'Operations': '操作',
+    'Fork on GitHub': '在 GitHub 上查看', 'GitHub repository': 'GitHub 仓库', 'Input Video': '输入视频', 'Operations': '操作',
     'Batch': '批量', 'Click to choose': '点击选择文件', 'or drag & drop local file': '或将本地文件拖放到此处', 'No file chosen': '尚未选择文件',
     'Remove': '移除', 'Clear Queue': '清空队列', 'Trim': '剪辑', 'applied to all operations': '应用于所有操作',
     'Disabled (batch mode)': '批量模式下已禁用', 'Drag the handles to set start and end. Leave untouched to keep the full video.': '拖动滑块设置开始与结束位置；保持不动则使用完整视频。',
